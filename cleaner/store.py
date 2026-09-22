@@ -11,7 +11,7 @@ import re
 import shutil
 import sqlite3
 import threading
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from .processes import codex_processes
 from .rpc import CodexRpc, RpcError, find_codex
@@ -39,6 +39,32 @@ REQUIRED = {"catalog": "local_thread_catalog", "state": "threads", "history": "t
 
 class CleanupError(RuntimeError):
     pass
+
+
+def windows_path_text(value):
+    """Normalize only filesystem extended paths, never device namespaces."""
+    if value.startswith('\\\\.\\'):
+        raise CleanupError('不支持 Windows 设备路径。')
+    if not value.startswith('\\\\?\\'):
+        return value
+    if value[:8].upper() == '\\\\?\\UNC\\':
+        normal = '\\\\' + value[8:]
+    elif re.match(r'^[a-zA-Z]:\\', value[4:]):
+        normal = value[4:]
+    else:
+        raise CleanupError('不支持此 Windows 扩展路径命名空间。')
+    # A verbatim trailing space/dot can name a different file from its DOS form.
+    if any(p not in {'.', '..'} and p.endswith((' ', '.')) for p in PureWindowsPath(normal).parts[1:]):
+        raise CleanupError('不支持末尾包含空格或句点的 Windows 扩展路径。')
+    return normal
+
+
+def canonical_path(path):
+    path = Path(path).expanduser()
+    if os.name == 'nt':
+        windows_path_text(str(path))  # Reject device paths before resolution.
+    resolved = path.resolve()  # Resolve junctions/symlinks before containment checks.
+    return Path(windows_path_text(str(resolved))) if os.name == 'nt' else resolved
 
 
 def dumps(value):
@@ -82,7 +108,7 @@ def file_stamp(path):
 
 class Store:
     def __init__(self, home: Path, process_provider=codex_processes, rpc_factory=CodexRpc):
-        self.home = home.expanduser().resolve()
+        self.home = canonical_path(home)
         if not self.home.is_dir():
             raise CleanupError(f"Codex 数据目录不存在：{self.home}")
         self.process_provider = process_provider
@@ -110,7 +136,7 @@ class Store:
         return result
 
     def inside(self, path):
-        resolved = path.resolve()
+        resolved = canonical_path(path)
         if not resolved.is_relative_to(self.home) or resolved == self.home:
             raise CleanupError(f"路径超出 Codex 数据目录：{path}")
         return resolved

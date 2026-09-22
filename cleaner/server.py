@@ -124,8 +124,6 @@ class Handler(BaseHTTPRequestHandler):
                     entry = self.server.plans.pop(data.get("plan_token", ""), None)
                 if entry is None or time.monotonic() - entry[0] > 900:
                     raise CleanupError("删除预览已失效，请重新预览。")
-                if data.get("confirm") != "删除":
-                    raise CleanupError("请输入“删除”确认。")
                 if entry[2] != app:
                     raise CleanupError("预览后切换了应用，请重新预览。")
                 return self.respond(200, store.apply(entry[1]))

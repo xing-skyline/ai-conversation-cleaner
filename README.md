@@ -2,7 +2,7 @@
 
 English · [简体中文](README.zh-CN.md)
 
-A Windows utility for reviewing and deleting **local conversations** from Codex, Claude Code, Grok Build, Cursor, Google Antigravity, and DeepSeek Harness. Search, inspect, select, preview, then delete—with a default backup, a backup folder you choose, or no backup.
+A Windows utility for reviewing and deleting **local conversations** from Codex, Claude Code, Grok Build, Cursor, Google Antigravity, DeepSeek Harness, and OpenCode. Search, inspect, select, preview, then delete—with a default backup, a backup folder you choose, or no backup.
 
 **Public preview · Windows x64 · Simplified Chinese interface.** An independent community project, not affiliated with the supported applications' vendors.
 
@@ -29,7 +29,7 @@ The executable is **unsigned**. Verify release SHA-256 checksums. If Windows blo
    | 不备份，直接删除 | No conversation/database backup. Committed changes cannot be automatically restored after an error. |
 
 4. Exit the target application, its CLI and background processes.
-5. Click **删除所选任务**, review titles/IDs and the backup policy, type **删除**, and confirm.
+5. Click **删除所选任务**, review titles/IDs and the backup policy, then click **备份并删除** or **直接删除（不备份）**. No typed confirmation is required.
 6. Check the result, then reopen the original application.
 
 Each fresh launch defaults to backup; no-backup is never remembered automatically. A preview binds the IDs and backup policy to a short-lived, single-use token. Changed data requires a fresh preview. Each batch supports up to 500 conversations.
@@ -44,10 +44,13 @@ Each fresh launch defaults to backup; no-backup is never remembered automaticall
 | Cursor | Recognized composer headers/data, owned message/checkpoint/diff keys, workspace indexes and independent transcripts. Shared content-addressed blobs are preserved. |
 | Antigravity | Recognized conversation, annotation, brain and recording files; local summary database and IDE summary index. Binary bodies are not decoded. |
 | DeepSeek Harness | `.dsh/sessions` including compressed logs, projection caches and workspace/archive membership. Displays cached titles and first-prompt summaries, not the full compressed transcript. |
+| OpenCode | `opencode.db` sessions, messages/parts, todos, share metadata, input/context projections and exact-session event records; recognized legacy JSON and session diffs. Preserves projects, accounts, credentials, shared tool outputs and remote shares. Parent sessions require explicitly selecting their child sessions. |
 
 This is **actual removal from recognized active local storage**, not an archive toggle. It is **not secure erasure**: old backups, generic logs, shared caches, database free pages, cloud history and OS recovery mechanisms may retain data. Project source/documents, credentials, settings, skills and plugins are not cleanup targets.
 
-Default per-user Windows locations are supported. Codex also supports `CODEX_HOME` / `--home`. Other custom homes, WSL, SSH/remote hosts, cloud agents and unrelated editor extensions are outside scope. Codex does not have to be installed to open the other tabs.
+Default per-user Windows locations are supported. Codex also supports `CODEX_HOME` / `--home`; OpenCode defaults to `%USERPROFILE%/.local/share/opencode`, honors `XDG_DATA_HOME` and `OPENCODE_DB` (except in-memory databases), and uses the standard `opencode.db` unless explicitly overridden. Other applications' custom homes, WSL, SSH/remote hosts, cloud agents and unrelated editor extensions are outside scope. Codex does not have to be installed to open the other tabs.
+
+OpenCode's SQLite adapter was checked against the v1.18.31 schema. Older recognized `storage/session`, `storage/message`, `storage/part` and `storage/session_diff` JSON files are also handled. Unknown session-related database tables stop deletion instead of being silently skipped. OpenCode database backups can include account/credential tables because the backup is a complete database copy; keep them private.
 
 These internal upstream formats can change; **compatibility with every version is not guaranteed**. DeepSeek cache versions 5/7, shared projection version 3 and workspace version 2 are recognized. Several unexpected structures stop processing, but not every upstream change can be detected. Known executable and Node/Bun paths are checked; custom launchers/plugins may escape detection, so closing the target application yourself remains mandatory.
 

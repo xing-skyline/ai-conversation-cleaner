@@ -10,6 +10,7 @@ NODE_PATTERNS={
     'claude':r'(?i)(@anthropic-ai[\\/]claude-code|[\\/]claude-code[\\/]|[\\/]claude(?:\.m?js)?(?:["\s]|$))',
     'grok':r'(?i)(@xai[\\/]grok|[\\/]grok(?:-build|-cli)?[\\/]|[\\/]grok(?:-build)?(?:\.m?js)?(?:["\s]|$))',
     'deepseek':r'(?i)(@deepseek-ai[\\/]dsh|deepseek-harness|[\\/]dsh[\\/]|[\\/]dsh(?:\.m?js)?(?:["\s]|$)|\.dsh[\\/]profiles)',
+    'opencode':r'(?i)([\\/]opencode-ai[\\/]|[\\/]opencode(?:\.m?js)?(?:["\s]|$))',
 }
 
 

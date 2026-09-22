@@ -35,7 +35,7 @@ def main():
             for index,mode in enumerate(['none','custom','default']):
                 plan=api('preview',{'ids':[inventory['rows'][index]['id']],
                                    'backup':{'mode':mode,'directory':str(root/'chosen-backups')}})
-                result=api('delete',{'plan_token':plan['plan_token'],'confirm':'删除'})
+                result=api('delete',{'plan_token':plan['plan_token']})
                 assert result['remaining']==3-index and result['backup_mode']==mode
                 if mode=='none':assert result['backup_dir'] is None and result['backups']==[]
                 else:assert Path(result['backup_dir'],'result.json').is_file()

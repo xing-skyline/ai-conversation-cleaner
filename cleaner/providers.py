@@ -16,12 +16,13 @@ from urllib.parse import unquote
 from .processes import cli_processes, dsh_processes
 from .protobuf import summary_map
 from .backups import normalize_backup, check_pending, Operation
-from .store import CleanupError, Store, UUID, atomic_json, connect, digest, file_stamp, quote, tables
+from .store import CleanupError, Store, UUID, atomic_json, canonical_path, connect, digest, file_stamp, quote, tables
 
-LABELS = {"codex":"Codex", "claude":"Claude Code", "grok":"Grok Build", "cursor":"Cursor", "antigravity":"Antigravity", "deepseek":"DeepSeek Harness"}
+LABELS = {"codex":"Codex", "claude":"Claude Code", "grok":"Grok Build", "cursor":"Cursor", "antigravity":"Antigravity", "deepseek":"DeepSeek Harness", "opencode":"OpenCode"}
 PROCESSES = {"claude":{"claude.exe", "claude-code.exe"}, "grok":{"grok.exe", "grok-build.exe"},
              "cursor":{"cursor.exe", "cursor-agent.exe"},
-             "antigravity":{"antigravity.exe", "agy.exe", "language_server_windows_x64.exe"}}
+             "antigravity":{"antigravity.exe", "agy.exe", "language_server_windows_x64.exe"},
+             "opencode":{"opencode.exe", "opencode-cli.exe", "opencode-desktop.exe"}}
 
 
 def read_json(path, fallback=None):
@@ -83,7 +84,7 @@ class LocalProvider:
     def __init__(self, app, profile=None, process_provider=None):
         self.app = app
         self.label = LABELS[app]
-        self.profile = (profile or Path.home()).resolve()
+        self.profile = canonical_path(profile or Path.home())
         roaming = self.profile / "AppData/Roaming"
         self.roots = {
             "claude": [self.profile/".claude"],
@@ -91,6 +92,7 @@ class LocalProvider:
             "cursor": [roaming/"Cursor/User", self.profile/".cursor/projects"],
             "antigravity": [self.profile/".gemini/antigravity", self.profile/".gemini/antigravity-ide", roaming/"Antigravity/User"],
             "deepseek": [self.profile/".dsh"],
+            "opencode": [self.profile/".local/share/opencode"],
         }[app]
         self.home = self.roots[0]
         self.backup_root = self.profile / "AppData/Local/AIConversationCleaner/backups" / app
@@ -105,7 +107,7 @@ class LocalProvider:
         return bool(UUID.fullmatch(target))
 
     def safe(self, path):
-        resolved = path.resolve()
+        resolved = canonical_path(path)
         if not any(resolved.is_relative_to(r) and resolved != r for r in self.roots):
             raise CleanupError("文件路径超出已识别的会话目录：" + str(path))
         return resolved
@@ -457,11 +459,16 @@ class LocalProvider:
 
 
 def make_providers(codex_home=None,profile=None):
+    from .opencode import OpenCodeProvider
+    default_profile = profile is None
     profile=profile or Path.home()
     result={}
     for app in LABELS:
         try:
-            result[app]=Store(codex_home or profile/'.codex') if app=='codex' else LocalProvider(app,profile)
+            if app == 'opencode':
+                result[app] = OpenCodeProvider(None if default_profile else profile)
+            else:
+                result[app]=Store(codex_home or profile/'.codex') if app=='codex' else LocalProvider(app,profile)
         except CleanupError:
             continue
     return result

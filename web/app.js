@@ -88,14 +88,13 @@ $('preview').addEventListener('click',async()=>{
     $('confirm-note').textContent=`请先退出 ${data.label}${app==='codex'?' 桌面端与 Codex CLI':''}。\n`+(noBackup?'不备份，直接删除。误删或中途失败后无法自动恢复；已有备份保留。':`先备份再删除。备份位置：${backupLocation(plan.backup)}\\时间戳`);
     $('execute').textContent=noBackup?'直接删除（不备份）':'备份并删除';
     $('plan-list').replaceChildren();for(const r of plan.rows){const li=node('li',r.title);li.append(node('small',r.id));$('plan-list').append(li);}
-    $('confirmation').value='';$('execute').disabled=true;$('confirm-dialog').showModal();
+    $('execute').disabled=false;$('confirm-dialog').showModal();
   }catch(e){showError(e);}
 });
-$('confirmation').addEventListener('input',()=>{$('execute').disabled=$('confirmation').value!=='删除' || busy;});
 $('execute').addEventListener('click',async()=>{
   if(busy)return;busy=true;$('execute').disabled=true;$('execute').textContent=plan.backup.mode==='none'?'正在直接删除…':'正在备份并删除…';$('error').hidden=true;
   try{
-    const r=await api('delete',{plan_token:plan.plan_token,confirm:$('confirmation').value});
+    const r=await api('delete',{plan_token:plan.plan_token});
     $('success').textContent=`${data.label} 已删除 ${r.deleted} 个会话，保留 ${r.remaining} 个。验证通过。${app==='codex'?`ChatGPT 目录 ${r.chatgpt_before} → ${r.chatgpt_after}。`:''}${r.backup_dir?'备份：'+r.backup_dir:'本次未创建备份。'}`;$('success').hidden=false;selected.clear();$('confirm-dialog').close();
   }catch(e){$('confirm-dialog').close();showError(e);}
   finally{busy=false;$('execute').textContent='备份并删除';await refresh(true);}

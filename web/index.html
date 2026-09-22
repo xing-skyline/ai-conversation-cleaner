@@ -3,9 +3,9 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AI 会话清理器</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/apps.css"><script src="/app.js" defer></script></head>
 <body>
 <div class="shell">
-  <aside class="rail"><div class="brand">AI<span>·</span></div><div class="rail-label">LOCAL<br>TOOLS</div><div class="rail-bottom">1.1</div></aside>
+  <aside class="rail"><div class="brand">AI<span>·</span></div><div class="rail-label">LOCAL<br>TOOLS</div><div class="rail-bottom">1.2</div></aside>
   <main>
-    <header><div><div class="eyebrow">AI CONVERSATION CLEANER / LOCAL</div><h1>把对话列表，收拾干净。</h1><p class="subtitle">六个应用，一个清理工具。选择本地会话，预览后删除。</p></div><button id="quit" class="quiet">退出工具 ↗</button></header>
+    <header><div><div class="eyebrow">AI CONVERSATION CLEANER / LOCAL</div><h1>把对话列表，收拾干净。</h1><p class="subtitle">七个应用，一个清理工具。选择本地会话，预览后删除。</p></div><button id="quit" class="quiet">退出工具 ↗</button></header>
     <nav id="apps" class="apps" aria-label="选择应用"></nav>
     <div id="demo" class="notice demo" hidden>演示模式 · 这里都是临时示例数据，可以放心试删。</div>
     <section class="stats"><div><span>当前应用会话</span><strong id="total">—</strong></div><div><span>已归档</span><strong id="archived">—</strong></div><div><span>缺失 / 残留</span><strong id="broken">—</strong></div><div class="stat-note"><span class="dot"></span><div>仅在这台电脑运行<small>本地读取 · 备份可选</small></div></div></section>
@@ -26,6 +26,6 @@
     <p class="footnote">删除选中应用的本地会话记录、索引和独立会话文件。是否备份由你选择；不备份时无法自动恢复。项目目录、账号配置、Skills、已有备份与云端历史保留。共享缓存不作磁盘擦除。</p>
   </main>
 </div>
-<dialog id="confirm-dialog"><form method="dialog"><div class="dialog-top"><div class="eyebrow">CONFIRM DELETION</div><button class="text-button" aria-label="关闭删除预览">✕</button></div><h2>确认删除这些会话？</h2><p id="plan-summary"></p><ul id="plan-list"></ul><div class="notice" id="confirm-note"></div><label class="confirm-label">输入“删除”以确认<input id="confirmation" autocomplete="off" placeholder="删除"></label><div class="dialog-actions"><button>取消</button><button type="button" id="execute" class="danger" disabled>备份并删除</button></div></form></dialog>
+<dialog id="confirm-dialog"><form method="dialog"><div class="dialog-top"><div class="eyebrow">CONFIRM DELETION</div><button class="text-button" aria-label="关闭删除预览">✕</button></div><h2>确认删除这些会话？</h2><p id="plan-summary"></p><ul id="plan-list"></ul><div class="notice" id="confirm-note"></div><div class="dialog-actions"><button>取消</button><button type="button" id="execute" class="danger" disabled>备份并删除</button></div></form></dialog>
 <dialog id="detail-dialog"><div class="dialog-top"><div class="eyebrow">TASK DETAILS</div><button id="close-detail" class="text-button" aria-label="关闭任务详情">✕</button></div><h2 id="detail-title"></h2><pre id="detail-meta"></pre><div id="messages"></div></dialog>
 </body></html>

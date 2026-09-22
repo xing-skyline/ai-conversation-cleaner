@@ -20,6 +20,7 @@ class ReleaseReadinessTests(unittest.TestCase):
             'claude':r'node "C:\sample\node_modules\@anthropic-ai\claude-code\cli.js"',
             'grok':r'node "C:\sample\node_modules\@xai\grok-build\cli.js"',
             'deepseek':r'node "C:\sample\.dsh\profiles\node_modules\@deepseek-ai\dsh\lib\bin.js"',
+            'opencode':r'node "C:\sample\node_modules\opencode-ai\bin\opencode"',
         }
         import re
         for app,command in cases.items():

@@ -223,9 +223,9 @@ class HttpTests(unittest.TestCase):
         self.assertEqual(len(self.request('/api/inventory')['rows']),4)
     def test_preview_delete_once(self):
         plan=self.request('/api/preview',{'ids':[IDS[0]]})
-        result=self.request('/api/delete',{'plan_token':plan['plan_token'],'confirm':'删除'})
+        result=self.request('/api/delete',{'plan_token':plan['plan_token']})
         self.assertEqual(result['deleted'],1)
-        with self.assertRaises(urllib.error.HTTPError):self.request('/api/delete',{'plan_token':plan['plan_token'],'confirm':'删除'})
+        with self.assertRaises(urllib.error.HTTPError):self.request('/api/delete',{'plan_token':plan['plan_token']})
     def test_ids_require_real_membership(self):
         with self.assertRaises(urllib.error.HTTPError):self.request('/api/preview',{'ids':['../../file']})
     def test_backup_policy_is_bound_to_preview(self):
