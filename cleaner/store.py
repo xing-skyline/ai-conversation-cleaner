@@ -310,10 +310,8 @@ class Store:
     def exclusive(self):
         self.backup_root.mkdir(parents=True, exist_ok=True)
         with (self.backup_root / "operation.lock").open("a+b") as handle:
-            handle.seek(0)
-            if handle.read(1) == b"":
-                handle.write(b"0")
-                handle.flush()
+            # Windows byte locks may extend past EOF. Do not read a byte that
+            # another process may already have locked.
             handle.seek(0)
             if os.name == "nt":
                 import msvcrt

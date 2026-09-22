@@ -132,10 +132,15 @@ except CleanupError:
 '''
             def attempt():
                 return subprocess.run([sys.executable, '-c', code, str(home)], cwd=Path(__file__).resolve().parents[1], capture_output=True, timeout=15)
-            with store.exclusive():
-                self.assertEqual(attempt().returncode, 23)
-            result = attempt()
-            self.assertEqual(result.returncode, 0, result.stderr)
+            store.backup_root.mkdir(parents=True, exist_ok=True)
+            for contents in (b'', b'0'):
+                with self.subTest(existing_lock=contents):
+                    (store.backup_root/'operation.lock').write_bytes(contents)
+                    with store.exclusive():
+                        result = attempt()
+                        self.assertEqual(result.returncode, 23, result.stderr)
+                    result = attempt()
+                    self.assertEqual(result.returncode, 0, result.stderr)
 
 
 if __name__ == '__main__': unittest.main()

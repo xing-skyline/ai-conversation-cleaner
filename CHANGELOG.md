@@ -8,6 +8,8 @@
 - Add a double-click source launcher, a standalone `.app` build, and Apple Silicon/Intel CI packages with preserved bundle symlinks and signatures.
 - Cover platform paths, process matching, folder integration and cross-process exclusion with isolated regressions.
 - Ignore suffixed Codex database backup files when identifying live versioned databases; multiple actual live versions still block cleanup.
+- Report Windows lock contention correctly without reading a byte already locked by another process.
+- Publish checksummed Windows, Apple Silicon and Intel packages together only after all release builds pass.
 
 ## 1.2.2 — Codex catalog auxiliary records
 
