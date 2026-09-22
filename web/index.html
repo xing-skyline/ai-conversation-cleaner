@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AI 会话清理器</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/apps.css"><script src="/app.js" defer></script></head>
+<body>
+<div class="shell">
+  <aside class="rail"><div class="brand">AI<span>·</span></div><div class="rail-label">LOCAL<br>TOOLS</div><div class="rail-bottom">1.1</div></aside>
+  <main>
+    <header><div><div class="eyebrow">AI CONVERSATION CLEANER / LOCAL</div><h1>把对话列表，收拾干净。</h1><p class="subtitle">六个应用，一个清理工具。选择本地会话，预览后删除。</p></div><button id="quit" class="quiet">退出工具 ↗</button></header>
+    <nav id="apps" class="apps" aria-label="选择应用"></nav>
+    <div id="demo" class="notice demo" hidden>演示模式 · 这里都是临时示例数据，可以放心试删。</div>
+    <section class="stats"><div><span>当前应用会话</span><strong id="total">—</strong></div><div><span>已归档</span><strong id="archived">—</strong></div><div><span>缺失 / 残留</span><strong id="broken">—</strong></div><div class="stat-note"><span class="dot"></span><div>仅在这台电脑运行<small>本地读取 · 备份可选</small></div></div></section>
+    <div class="notice" id="process-note">正在读取任务列表…</div>
+    <div id="error" class="notice error" role="alert" hidden></div>
+    <div id="success" class="notice success" role="status" hidden></div>
+    <section class="backup-settings" aria-label="备份设置">
+      <div class="backup-heading"><label for="backup-mode">删除前备份</label><select id="backup-mode"><option value="default">备份到默认目录</option><option value="custom">手动选择备份目录</option><option value="none">不备份，直接删除</option></select></div>
+      <div id="custom-backup" class="backup-path" hidden><input id="backup-directory" aria-label="自定义备份目录" placeholder="例如 D:\AI会话备份"><button id="choose-backup">选择文件夹…</button></div>
+      <p id="backup-note" class="backup-note">备份设置将随删除预览一起确认。</p>
+    </section>
+    <section class="workspace">
+      <div class="toolbar"><label class="search"><span>⌕</span><input id="search" placeholder="搜索标题、项目路径或任务 ID" aria-label="搜索任务"></label><select id="filter" aria-label="筛选任务"><option value="all">全部任务</option><option value="normal">未归档任务</option><option value="archived">已归档</option><option value="broken">缺失 / 残留</option></select><button id="refresh">刷新列表</button></div>
+      <div class="table-wrap"><table><thead><tr><th class="check"><input type="checkbox" id="select-all" aria-label="全选当前筛选结果"></th><th>任务 / 项目</th><th>状态</th><th>更新时间</th><th class="right">会话文件</th><th></th></tr></thead><tbody id="rows"></tbody></table><div id="empty" class="empty" hidden>没有匹配的任务</div></div>
+      <div class="selection-bar"><div><strong id="selected">0</strong> 个已选择 <button id="clear" class="text-button">清空选择</button><span id="shown"></span></div><button id="preview" class="danger" disabled>删除所选任务 <span>→</span></button></div>
+    </section>
+    <footer><div id="home">数据目录：加载中</div><button id="backups" class="text-button">打开备份目录 ↗</button></footer>
+    <p class="footnote">删除选中应用的本地会话记录、索引和独立会话文件。是否备份由你选择；不备份时无法自动恢复。项目目录、账号配置、Skills、已有备份与云端历史保留。共享缓存不作磁盘擦除。</p>
+  </main>
+</div>
+<dialog id="confirm-dialog"><form method="dialog"><div class="dialog-top"><div class="eyebrow">CONFIRM DELETION</div><button class="text-button" aria-label="关闭删除预览">✕</button></div><h2>确认删除这些会话？</h2><p id="plan-summary"></p><ul id="plan-list"></ul><div class="notice" id="confirm-note"></div><label class="confirm-label">输入“删除”以确认<input id="confirmation" autocomplete="off" placeholder="删除"></label><div class="dialog-actions"><button>取消</button><button type="button" id="execute" class="danger" disabled>备份并删除</button></div></form></dialog>
+<dialog id="detail-dialog"><div class="dialog-top"><div class="eyebrow">TASK DETAILS</div><button id="close-detail" class="text-button" aria-label="关闭任务详情">✕</button></div><h2 id="detail-title"></h2><pre id="detail-meta"></pre><div id="messages"></div></dialog>
+</body></html>

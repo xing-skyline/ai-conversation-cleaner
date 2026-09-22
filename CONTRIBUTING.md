@@ -1,0 +1,29 @@
+# Contributing
+
+Use Windows and Python 3.11+ (CI uses 3.13). Prefer explicit ownership checks over broad filename matching. Keep changes scoped to recognized storage formats.
+
+```powershell
+python -m unittest discover -s tests -v
+node --check web/app.js
+python tools/check_public_files.py
+```
+
+Normal tests use synthetic temporary data and injected process detectors. Add a failing fixture-based test before changing deletion, backups or recovery. Check that unselected conversations survive, paths stay in scope, stale previews are rejected, and failures are reported accurately.
+
+## Optional local probes
+
+- `python -m tests.probe_official`: requires Codex CLI. Creates/deletes a synthetic empty session under a temporary home; makes no model request.
+- `python -m tests.probe_node_guard`: requires Node. Starts only an inert test-owned process, verifies detection, then terminates only that process.
+- `python -m tests.verify_local_copies --backup-mode default` (also `custom` / `none`): reads real local stores, copies recognized data to temporary directories and deletes only those copies. Reports can contain private usage counts and stay under ignored `.local-reports/`. This is an explicit opt-in check; do not run against someone else's profile without authorization.
+
+Never commit real dumps, personal-task screenshots, inventory output or local validation reports.
+
+## Build
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.\build.ps1 -Python .\.venv\Scripts\python.exe
+```
+
+GitHub CI builds the public archive in a clean environment and smoke-tests the executable. Packaging uses an explicit public file list. Do not publish binaries gathered from a personal environment as official assets.

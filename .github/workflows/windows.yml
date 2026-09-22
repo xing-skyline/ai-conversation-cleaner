@@ -1,0 +1,48 @@
+name: Windows tests and build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+      - name: Check the public file manifest
+        run: python tools/check_public_files.py
+      - name: Check frontend syntax
+        run: node --check web/app.js
+      - name: Create an isolated build environment
+        run: |
+          python -m venv .venv
+          .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed.' }
+      - name: Test and build
+        run: .\build.ps1 -Python .\.venv\Scripts\python.exe
+      - name: Smoke-test the executable using synthetic data only
+        run: .\.venv\Scripts\python.exe tools/smoke_executable.py 'AI会话清理器.exe'
+      - name: Package public files and dependency notices
+        run: .\.venv\Scripts\python.exe tools/package_release.py
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: windows-x64
+          path: |
+            release/AIConversationCleaner-Windows-x64.zip
+            release/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
