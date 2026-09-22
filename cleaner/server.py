@@ -20,6 +20,7 @@ from .store import CleanupError, Store
 from .providers import LABELS, make_providers
 from .backups import backup_destination
 from .folders import choose_backup_directory
+from .lifecycle import BrowserLifetime
 
 
 def assets_root():
@@ -34,15 +35,21 @@ def select_provider(providers, requested, inventory=False):
 
 class AppServer(ThreadingHTTPServer):
     daemon_threads = True
-    def __init__(self, store, port=0, demo=False, providers=None):
+    def __init__(self, store, port=0, demo=False, providers=None, expect_browser=False):
         self.store = store
         self.providers = providers or {"codex":store}
         self.token = secrets.token_urlsafe(32)
         self.plans = {}
         self.plan_lock = threading.Lock()
         self.demo = demo
+        self.lifecycle = BrowserLifetime(expect_browser=expect_browser)
         super().__init__(("127.0.0.1", port), Handler)
         self.origin = f"http://127.0.0.1:{self.server_port}"
+
+    def service_actions(self):
+        if self.lifecycle.should_stop():
+            # shutdown() must run outside the serve_forever thread.
+            threading.Thread(target=self.shutdown, daemon=True).start()
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -72,6 +79,19 @@ class Handler(BaseHTTPRequestHandler):
             raise CleanupError("不允许来自其他网站的请求。")
 
     def do_GET(self):
+        self.guarded(self.get)
+
+    def do_POST(self):
+        self.guarded(self.post)
+
+    def guarded(self, callback):
+        try:
+            with self.server.lifecycle.operation():
+                callback()
+        except CleanupError as error:
+            self.respond(503, {"error": str(error)})
+
+    def get(self):
         parsed = urlsplit(self.path)
         if parsed.path in {"/", "/app.js", "/style.css", "/apps.css"}:
             if self.headers.get("Host") != urlsplit(self.server.origin).netloc:
@@ -98,7 +118,7 @@ class Handler(BaseHTTPRequestHandler):
         except (CleanupError, OSError, ValueError, RuntimeError, sqlite3.DatabaseError) as error:
             self.respond(400, {"error": str(error)})
 
-    def do_POST(self):
+    def post(self):
         try:
             self.auth()
             if self.headers.get("Content-Type", "").split(";")[0] != "application/json":
@@ -109,6 +129,12 @@ class Handler(BaseHTTPRequestHandler):
             data = json.loads(self.rfile.read(size))
             if not isinstance(data, dict):
                 raise CleanupError("请求体必须是对象。")
+            if self.path == '/api/browser':
+                self.server.lifecycle.browser_event(data.get('client_id'), data.get('event'), data.get('sequence'))
+                return self.respond(200, {'ok': True})
+            if self.path == '/api/quit':
+                pending = self.server.lifecycle.request_exit()
+                return self.respond(200, {'ok': True, 'pending': pending})
             app = data.get("app", "codex")
             store = self.server.providers.get(app)
             if store is None:
@@ -135,10 +161,6 @@ class Handler(BaseHTTPRequestHandler):
                 return self.respond(200, {"ok": True})
             if self.path == '/api/choose-backup-directory':
                 return self.respond(200, {'directory':choose_backup_directory(data.get('initial',''))})
-            if self.path == "/api/quit":
-                self.respond(200, {"ok": True})
-                threading.Thread(target=self.server.shutdown, daemon=True).start()
-                return
             self.respond(404, {"error": "接口不存在"})
         except Exception as error:
             self.respond(400, {"error": str(error)})
@@ -168,7 +190,8 @@ def main():
         if args.inventory:
             print(json.dumps(store.inventory(), ensure_ascii=False, indent=2))
             return
-        with AppServer(store, port=args.port, demo=args.demo, providers=providers) as server:
+        with AppServer(store, port=args.port, demo=args.demo, providers=providers,
+                       expect_browser=not args.no_browser) as server:
             url = server.origin + "/#token=" + server.token
             if args.url_file:
                 args.url_file.write_text(url, encoding="utf-8")

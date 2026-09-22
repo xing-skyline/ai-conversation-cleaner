@@ -12,7 +12,7 @@ A Windows utility for reviewing and deleting **local conversations** from Codex,
 
 Download `AIConversationCleaner-Windows-x64.zip` from [Releases](https://github.com/xing-skyline/ai-conversation-cleaner/releases), extract it, and double-click **`AIConversationCleaner.exe`**. Python, Node.js and CMD are not required. Source builds use the filename `AI会话清理器.exe`.
 
-The executable opens a browser page served only on `127.0.0.1` with a per-launch access token. It is a local application, not a hosted service. Click **退出工具** (“Exit tool”) to stop the server; closing the browser tab alone does not stop it.
+The executable opens a browser page served only on `127.0.0.1` with a per-launch access token. It is a local application, not a hosted service. Click **退出工具** (“Exit tool”) to stop the current instance, or close its last browser tab: the backend then exits after a 3-second refresh grace period. Other tabs for that instance keep it alive. Deletion, backup and other active requests finish before shutdown. A lost/crashed browser connection expires after approximately 3 minutes; a browser that never connects times out after 2 minutes. A tab frozen/discarded by the browser for that long may require relaunching the EXE. Headless `--no-browser` use is not timed out unless a browser page has connected.
 
 The executable is **unsigned**. Verify release SHA-256 checksums. If Windows blocks it, do not disable system security protections; review the source or build it yourself instead.
 

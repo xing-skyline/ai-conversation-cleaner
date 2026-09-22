@@ -46,7 +46,38 @@ def main():
                 try:call('quit',{})
                 except (OSError,ValueError):pass
             try:process.wait(timeout=10)
-            except subprocess.TimeoutExpired:process.terminate();process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                process.terminate();process.wait(timeout=10)
+                raise AssertionError('Exit endpoint left the executable running.')
+            assert process.returncode == 0, 'Executable did not exit cleanly.'
+    check_browser_close(args.executable)
+
+
+def check_browser_close(executable):
+    """Require the real packaged process to exit without calling /api/quit."""
+    with tempfile.TemporaryDirectory(prefix='ai-cleaner-exit-smoke-') as folder:
+        url_file=Path(folder)/'url.txt'
+        process=subprocess.Popen([str(executable.resolve()),'--demo','--no-browser','--url-file',str(url_file)],
+                                 creationflags=subprocess.CREATE_NO_WINDOW if os.name=='nt' else 0)
+        try:
+            deadline=time.monotonic()+40
+            while not url_file.exists():
+                if process.poll() is not None:raise RuntimeError('Executable exited during startup.')
+                if time.monotonic()>deadline:raise TimeoutError('Executable startup timeout.')
+                time.sleep(.1)
+            url=urlsplit(url_file.read_text(encoding='utf-8'))
+            token=parse_qs(url.fragment)['token'][0]
+            for sequence,event in enumerate(['heartbeat','close'],1):
+                request=urllib.request.Request(f'{url.scheme}://{url.netloc}/api/browser',
+                    data=json.dumps({'client_id':'packaged-exit-test','event':event,'sequence':sequence}).encode(),
+                    headers={'X-Cleaner-Token':token,'Content-Type':'application/json'})
+                with urllib.request.urlopen(request,timeout=10) as response:assert response.status==200
+            process.wait(timeout=10)
+            assert process.returncode==0, 'Executable did not exit cleanly after browser close.'
+            print('Packaged last-browser-close exit passed (no forced termination).')
+        finally:
+            if process.poll() is None:
+                process.terminate();process.wait(timeout=10)
 
 
 if __name__=='__main__':main()

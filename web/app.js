@@ -3,6 +3,18 @@ const $ = id => document.getElementById(id);
 const fromHash = new URLSearchParams(location.hash.slice(1)).get('token');
 if (fromHash) { sessionStorage.setItem('cleanerToken', fromHash); history.replaceState(null, '', '/'); }
 const token = sessionStorage.getItem('cleanerToken') || '';
+const browserClient = crypto.randomUUID();
+let browserSequence = 0, browserTimer = null, quitting = false;
+async function browserEvent(event) {
+  const result = await fetch('/api/browser', {method:'POST', keepalive:true,
+    headers:{'X-Cleaner-Token':token,'Content-Type':'application/json'},
+    body:JSON.stringify({client_id:browserClient,event,sequence:++browserSequence})});
+  if (!result.ok) throw new Error('清理器后台已退出，请重新双击 EXE 启动。');
+}
+function heartbeat() { if(!quitting)browserEvent('heartbeat').catch(()=>{}); }
+addEventListener('pageshow',heartbeat);
+addEventListener('pagehide',()=>{if(!quitting)browserEvent('close').catch(()=>{});});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)heartbeat();});
 let data = null, selected = new Set(), plan = null, busy = false, visible = [], app = 'codex', loadSequence = 0;
 const size = n => n < 1024 ? `${n} B` : n < 1048576 ? `${(n/1024).toFixed(1)} KB` : `${(n/1048576).toFixed(1)} MB`;
 const showError = e => { $('error').textContent = e.message || String(e); $('error').hidden = false; };
@@ -103,9 +115,10 @@ $('confirm-dialog').addEventListener('cancel',e=>{if(busy)e.preventDefault();});
 $('confirm-dialog').querySelector('form').addEventListener('submit',e=>{if(busy)e.preventDefault();});
 $('close-detail').addEventListener('click',()=>$('detail-dialog').close());
 $('backups').addEventListener('click',async()=>{try{await api('open-backups',{backup:backupChoice()});}catch(e){showError(e);}});
-$('quit').addEventListener('click',async()=>{if(busy)return;try{await api('quit',{});document.body.replaceChildren(node('div','工具已退出，可以关闭此页面。','notice'));}catch(e){showError(e);}});
+$('quit').addEventListener('click',async()=>{if(busy || quitting)return;try{const r=await api('quit',{});quitting=true;clearInterval(browserTimer);document.body.replaceChildren(node('div',r.pending?'正在退出：等待当前后台操作完成。可以关闭此页面。':'工具已退出，可以关闭此页面。','notice'));}catch(e){showError(e);}});
 async function boot(){
   try{
+    await browserEvent('heartbeat');browserTimer=setInterval(heartbeat,15000);
     const apps=await api('apps');if(!apps.some(a=>a.id===app))app=apps[0].id;
     for(const item of apps){const button=node('button',item.label);button.classList.toggle('active',item.id===app);button.addEventListener('click',async()=>{if(busy)return;app=item.id;data=null;selected.clear();$('rows').replaceChildren();$('success').hidden=true;$('preview').disabled=true;$('selected').textContent='0';for(const b of $('apps').children)b.classList.toggle('active',b===button);await refresh();});$('apps').append(button);}
     await refresh();

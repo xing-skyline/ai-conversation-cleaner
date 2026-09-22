@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.1 — Exit when the browser closes
+
+- Exit the backend after the last browser page closes, with a refresh grace period and a heartbeat fallback for lost browser connections.
+- Keep other open tabs alive and finish active operations before shutting down; reject new work after an explicit exit request.
+- Allow the exit endpoint to work independently of the currently selected application.
+- Verify browser lifecycle transitions and packaged process exit; no changes to conversation deletion scope.
+
 ## 1.2.0 — OpenCode and Windows path compatibility
 
 - Add OpenCode SQLite/legacy JSON session cleanup, including event records and dependent-session checks.

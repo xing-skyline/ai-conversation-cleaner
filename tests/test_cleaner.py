@@ -238,6 +238,45 @@ class HttpTests(unittest.TestCase):
             self.assertEqual(self.request('/api/choose-backup-directory',{})['directory'],'D:\\My Backups')
         with patch('cleaner.server.choose_backup_directory',return_value=None,create=True):
             self.assertIsNone(self.request('/api/choose-backup-directory',{})['directory'])
+    def test_closing_browser_stops_server_without_quit_button(self):
+        event={'client_id':'test-tab','event':'heartbeat','sequence':1}
+        with self.assertRaises(urllib.error.HTTPError):
+            self.request('/api/browser',event,token=False)
+        self.request('/api/browser',event)
+        self.request('/api/browser',event | {'event':'close','sequence':2})
+        self.thread.join(timeout=6)
+        self.assertFalse(self.thread.is_alive(),'Closing the last browser page left the server running.')
+    def test_quit_does_not_require_a_live_selected_provider(self):
+        self.request('/api/quit',{'app':'unavailable'})
+        self.thread.join(timeout=3)
+        self.assertFalse(self.thread.is_alive())
+    def test_quit_waits_until_a_deletion_has_finished(self):
+        plan=self.request('/api/preview',{'ids':[IDS[0]],'backup':{'mode':'none'}})
+        started=threading.Event();release=threading.Event();results=[]
+        apply=self.server.store.apply
+        def delayed_apply(value):
+            started.set()
+            if not release.wait(timeout=8):raise RuntimeError('Test operation timed out.')
+            return apply(value)
+        def delete():
+            try:results.append(self.request('/api/delete',{'plan_token':plan['plan_token']}))
+            except Exception as error:results.append(error)
+        with patch.object(self.server.store,'apply',side_effect=delayed_apply):
+            worker=threading.Thread(target=delete,daemon=True);worker.start()
+            try:
+                self.assertTrue(started.wait(timeout=3))
+                self.assertTrue(self.request('/api/quit',{})['pending'])
+                self.thread.join(timeout=.7)
+                self.assertTrue(self.thread.is_alive(),'Exit interrupted an active deletion.')
+                with self.assertRaises(urllib.error.HTTPError):self.request('/api/preview',{'ids':[IDS[1]]})
+            finally:
+                release.set();worker.join(timeout=5)
+        self.thread.join(timeout=3)
+        self.assertFalse(self.thread.is_alive())
+        self.assertEqual(len(results),1)
+        self.assertIsInstance(results[0],dict)
+        self.assertEqual(results[0]['deleted'],1)
+        self.assertEqual(len(self.server.store.inventory()['rows']),3)
 
 
 if __name__=='__main__':unittest.main()
