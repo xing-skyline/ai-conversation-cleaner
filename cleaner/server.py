@@ -19,7 +19,7 @@ from .demo import create_demo
 from .store import CleanupError, Store
 from .providers import LABELS, make_providers
 from .backups import backup_destination
-from .folders import choose_backup_directory
+from .folders import choose_backup_directory, open_directory
 from .lifecycle import BrowserLifetime
 
 
@@ -110,7 +110,7 @@ class Handler(BaseHTTPRequestHandler):
             if store is None:
                 raise CleanupError("应用不存在或数据目录不可用。")
             if parsed.path == "/api/inventory":
-                return self.respond(200, store.inventory() | {"demo": self.server.demo, "app":app,"label":LABELS[app]})
+                return self.respond(200, store.inventory() | {"demo": self.server.demo, "app":app,"label":LABELS[app],"path_separator":os.sep})
             if parsed.path == "/api/detail":
                 target = parse_qs(parsed.query).get("id", [""])[0]
                 return self.respond(200, store.detail(target))
@@ -157,7 +157,7 @@ class Handler(BaseHTTPRequestHandler):
                 destination=backup_destination(store,data.get('backup'))
                 if destination is None:raise CleanupError('当前选择不备份，没有本次备份目录。')
                 destination.mkdir(parents=True, exist_ok=True)
-                os.startfile(str(destination))
+                open_directory(destination)
                 return self.respond(200, {"ok": True})
             if self.path == '/api/choose-backup-directory':
                 return self.respond(200, {'directory':choose_backup_directory(data.get('initial',''))})

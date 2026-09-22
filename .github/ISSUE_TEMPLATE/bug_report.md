@@ -11,7 +11,7 @@ assignees: ''
 
 ## Versions / 版本
 - Tool version:
-- Windows version:
+- Windows/macOS version and CPU architecture:
 - Target application and version:
 
 ## Steps using synthetic data / 使用虚构数据复现

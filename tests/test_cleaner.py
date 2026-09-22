@@ -2,6 +2,7 @@ import base64
 import contextlib
 import json
 import sqlite3
+import sys
 import tempfile
 import threading
 import unittest
@@ -152,7 +153,8 @@ class ProviderTests(unittest.TestCase):
         self.assertEqual(report['remaining'],1);self.assertFalse((root/'D%3A%5Cwork'/IDS[0]).exists())
         self.assertEqual(sql(db,'SELECT session_id FROM session_docs'),[(IDS[1],)])
     def test_cursor_database_exact_keys_and_legacy_index(self):
-        root=self.root/'AppData/Roaming/Cursor/User';db=root/'globalStorage/state.vscdb';db.parent.mkdir(parents=True)
+        appdata='Library/Application Support' if sys.platform=='darwin' else 'AppData/Roaming'
+        root=self.root/appdata/'Cursor/User';db=root/'globalStorage/state.vscdb';db.parent.mkdir(parents=True)
         sql(db,'CREATE TABLE composerHeaders(composerId TEXT PRIMARY KEY,value TEXT)');sql(db,'CREATE TABLE cursorDiskKV(key TEXT PRIMARY KEY,value TEXT)');sql(db,'CREATE TABLE ItemTable(key TEXT PRIMARY KEY,value TEXT)')
         for i in IDS[:2]:
             v=json.dumps({'composerId':i,'name':'Cursor '+i,'createdAt':1000000000000})
@@ -166,7 +168,8 @@ class ProviderTests(unittest.TestCase):
         self.assertEqual(sql(db,"SELECT value FROM cursorDiskKV WHERE key='agentKv:blob:shared'"),[('SHARED DATA',)])
         self.assertEqual(sql(db,"SELECT count(*) FROM cursorDiskKV WHERE key LIKE ?",('%'+IDS[0]+'%',)),[(0,)])
     def test_antigravity_binary_summary_and_artifacts(self):
-        base=self.root/'.gemini/antigravity';ide=self.root/'.gemini/antigravity-ide';user=self.root/'AppData/Roaming/Antigravity/User'
+        appdata='Library/Application Support' if sys.platform=='darwin' else 'AppData/Roaming'
+        base=self.root/'.gemini/antigravity';ide=self.root/'.gemini/antigravity-ide';user=self.root/appdata/'Antigravity/User'
         p=user/'globalStorage/state.vscdb';p.parent.mkdir(parents=True);sql(p,'CREATE TABLE ItemTable(key TEXT PRIMARY KEY,value TEXT)')
         sql(p,'INSERT INTO ItemTable VALUES(?,?)',('antigravityUnifiedStateSync.trajectorySummaries',summary(IDS[:2])))
         for i in IDS[:2]:

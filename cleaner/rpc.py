@@ -6,6 +6,7 @@ import os
 import queue
 import shutil
 import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
@@ -24,7 +25,14 @@ def find_codex() -> str | None:
         Path.home() / "AppData/Local/Programs/OpenAI/Codex/bin/codex.exe",
         Path.home() / ".codex/packages/standalone/current/codex.exe",
     ]
-    return next((str(p) for p in candidates if p.is_file()), None)
+    if sys.platform == 'darwin':
+        # Finder launches do not inherit Homebrew/npm's interactive shell PATH.
+        candidates = [Path('/opt/homebrew/bin/codex'), Path('/usr/local/bin/codex'),
+                      Path.home()/'.local/bin/codex', Path.home()/'.codex/packages/standalone/current/codex']
+        candidates += [root/app/'Contents/Resources/codex'
+                       for root in [Path('/Applications'), Path.home()/'Applications']
+                       for app in ['Codex.app', 'ChatGPT.app']]
+    return next((str(p) for p in candidates if p.is_file() and (os.name == 'nt' or os.access(p, os.X_OK))), None)
 
 
 class CodexRpc:

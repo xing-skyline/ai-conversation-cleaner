@@ -2,9 +2,9 @@
 
 [English](README.md) · 简体中文
 
-在 Windows 本机统一查看、搜索和删除 **Codex、Claude Code、Grok Build、Cursor、Google Antigravity（反重力）、DeepSeek Harness、OpenCode** 的本地会话。支持单选、多选、删除预览，以及默认备份、自选目录备份、不备份三种方式。
+在 Windows 或 macOS 本机统一查看、搜索和删除 **Codex、Claude Code、Grok Build、Cursor、Google Antigravity（反重力）、DeepSeek Harness、OpenCode** 的本地会话。支持单选、多选、删除预览，以及默认备份、自选目录备份、不备份三种方式。
 
-**公开预览版 · Windows x64 · 简体中文界面。** 本项目由社区独立开发，与上述应用厂商无隶属关系。
+**公开预览版 · Windows x64 / macOS Apple Silicon、Intel · 简体中文界面。** 本项目由社区独立开发，与上述应用厂商无隶属关系。
 
 > 工具直接修改应用的本地数据。删除时必须关闭对应应用、终端和后台进程。建议先运行隔离演示模式，在确认适配自己的应用版本前保持备份开启。
 
@@ -12,9 +12,11 @@
 
 从 [Releases](https://github.com/xing-skyline/ai-conversation-cleaner/releases) 下载 `AIConversationCleaner-Windows-x64.zip`，解压后双击 **`AIConversationCleaner.exe`**。不需要 Python、Node.js 或 CMD。自行编译的文件名为 `AI会话清理器.exe`。
 
-程序打开仅监听 `127.0.0.1` 的浏览器页面，每次启动使用新的访问令牌。这是本机应用，不是在线网站。结束使用时点击 **“退出工具”**，或者直接关闭当前实例的最后一个页面，后台会在约 3 秒的刷新宽限期后退出。还有其他页面打开时不会退出；正在进行的删除、备份及其他请求会先完成。浏览器崩溃或连接丢失时，约 3 分钟后自动回收；启动后始终没有页面连入则在 2 分钟后退出。标签被浏览器长时间冻结/休眠也可能触发回收，此时重新双击 EXE 即可。`--no-browser` 的纯接口使用不会超时退出，除非已有浏览器页面连入。
+macOS 从 [Releases](https://github.com/xing-skyline/ai-conversation-cleaner/releases) 下载 `AIConversationCleaner-macOS-arm64.zip`（Apple Silicon）或 `AIConversationCleaner-macOS-x86_64.zip`（Intel），解压后双击 **`AIConversationCleaner.app`**，也可将它拖入“应用程序”目录。打包的 `.app` 自带 Python 运行时，不需要另外安装 Python 或 Node.js。自行构建的应用位于 `dist/AIConversationCleaner.app`。
 
-EXE **没有数字签名**，可使用发布页面提供的 SHA-256 校验文件核对。如果 Windows 阻止运行，请不要关闭安全防护；可以审阅源码或自行构建。
+程序打开仅监听 `127.0.0.1` 的浏览器页面，每次启动使用新的访问令牌。这是本机应用，不是在线网站。结束使用时点击 **“退出工具”**，或者直接关闭当前实例的最后一个页面，后台会在约 3 秒的刷新宽限期后退出。还有其他页面打开时不会退出；正在进行的删除、备份及其他请求会先完成。浏览器崩溃或连接丢失时，约 3 分钟后自动回收；启动后始终没有页面连入则在 2 分钟后退出。标签被浏览器长时间冻结/休眠也可能触发回收，此时重新打开清理器即可。`--no-browser` 的纯接口使用不会超时退出，除非已有浏览器页面连入。
+
+Windows EXE **没有数字签名**；macOS 构建只有本地临时签名（ad-hoc），尚未做 Developer ID 签名或 Apple 公证。可使用发布页面提供的 SHA-256 校验文件核对。如果系统阻止运行，请不要关闭安全防护；可以审阅源码或自行构建。
 
 ## 使用步骤
 
@@ -48,7 +50,7 @@ EXE **没有数字签名**，可使用发布页面提供的 SHA-256 校验文件
 
 这是**从已识别的当前本地存储中实际移除记录和独立文件**，不是简单归档；但**不是安全擦除**。已有备份、通用日志、共享缓存、数据库空闲页、云端历史和系统恢复机制仍可能保留数据。项目源码及文档、凭据、设置、Skills 和插件不在清理范围内。
 
-支持默认用户级 Windows 数据目录；Codex 额外支持 `CODEX_HOME` / `--home`。OpenCode 默认读取 `%USERPROFILE%/.local/share/opencode`，支持 `XDG_DATA_HOME` 和 `OPENCODE_DB`（不含内存数据库），未指定时读取标准 `opencode.db`。其余应用的自定义目录、WSL、SSH/远端任务、云端 Agent、无关编辑器插件不在适配范围内。未安装 Codex 不影响其他应用标签启动。
+支持默认用户级 Windows / macOS 数据目录；Codex 额外支持 `CODEX_HOME` / `--home`。OpenCode 默认读取用户主目录下的 `.local/share/opencode`，支持 `XDG_DATA_HOME` 和 `OPENCODE_DB`（不含内存数据库），未指定时读取标准 `opencode.db`。其余应用的自定义目录、WSL、SSH/远端任务、云端 Agent、无关编辑器插件不在适配范围内。未安装 Codex 不影响其他应用标签启动。
 
 OpenCode SQLite 适配已核对 v1.18.31 表结构，同时处理已识别的旧版 `storage/session`、`storage/message`、`storage/part` 和 `storage/session_diff` JSON 文件。发现未知会话关联表时会停止删除，不会静默跳过。OpenCode 数据库备份是整库副本，可能包含账号与凭据信息，请勿公开或上传。
 
@@ -58,10 +60,13 @@ Codex 目录关联表已核对桌面版 26.915.4065.0 的结构。`inbox_items` 
 
 ## 备份、恢复与隐私
 
-默认位置：
+默认位置（`~` 表示当前用户主目录）：
 
-- Codex：`%USERPROFILE%/.codex/backups/codex-thread-cleaner`，保留旧子目录名以兼容已有备份与操作锁。
-- 其他应用：默认 Windows 用户布局下的 `%LOCALAPPDATA%/AIConversationCleaner/backups/应用名`。
+- Codex：`~/.codex/backups/codex-thread-cleaner`（自定义 `CODEX_HOME` 时跟随该目录），保留旧子目录名以兼容已有备份与操作锁。
+- Windows 其他应用：默认用户布局下的 `%LOCALAPPDATA%/AIConversationCleaner/backups/应用名`。
+- macOS 其他应用：`~/Library/Application Support/AIConversationCleaner/backups/应用名`。
+
+macOS 中，Cursor 索引位于 `~/Library/Application Support/Cursor/User`，Antigravity 索引位于 `~/Library/Application Support/Antigravity/User`；其他会话文件继续使用 `~/.codex`、`~/.claude`、`~/.grok`、`~/.cursor/projects`、`~/.gemini`、`~/.dsh` 和 `~/.local/share/opencode` 下已适配的结构。
 
 启用备份时，每批包含 `result.json`、路径映射、数据库副本和所选文件。SQLite 使用在线备份接口；普通异常且原应用保持退出时，会尝试回滚。断电、强制关闭或并发写入仍可能需要人工恢复；未完成操作会阻止后续删除。**产生新会话后，不要直接用旧备份覆盖整库。** 当前没有一键整库恢复按钮。
 
@@ -71,7 +76,7 @@ Codex 目录关联表已核对桌面版 26.915.4065.0 的结构。`inbox_items` 
 
 ## 源码运行与开发
 
-需要 Windows 和 Python 3.11+。运行时使用标准库；文件夹选择和 Node/Bun 进程检查会调用 Windows PowerShell。
+需要 Windows 或 macOS，以及 Python 3.11+。运行时使用标准库；Windows 调用 PowerShell，macOS 调用系统自带的 `ps`、`osascript` 和 `open`。两端共用清理、备份、恢复和界面逻辑。
 
 ```powershell
 git clone https://github.com/xing-skyline/ai-conversation-cleaner.git
@@ -82,7 +87,16 @@ python run.py --app cursor --inventory  # 只读，但输出可能含隐私
 python run.py --home C:\Example\CodexData
 ```
 
-`源码启动.cmd` 仅供开发，EXE 不依赖它。
+macOS 源码启动：
+
+```bash
+python3 run.py
+python3 run.py --demo
+python3 run.py --app cursor --inventory  # 只读，输出可能含隐私
+python3 run.py --home "$HOME/.codex"
+```
+
+也可在 Finder 中双击 `源码启动.command`，启动器会寻找项目虚拟环境或已安装的 Python 3.11+。Windows 的 `源码启动.cmd` 和 macOS 的 `.command` 都仅供源码运行，打包应用不依赖它们。
 
 ```powershell
 python -m unittest discover -s tests -v
@@ -95,7 +109,20 @@ python -m venv .venv
 .\build.ps1 -Python .\.venv\Scripts\python.exe
 ```
 
-正常测试使用隔离虚构数据，不删除真实会话。可选探针见 [CONTRIBUTING.md](CONTRIBUTING.md)。CI 在 Windows 上测试、检查公开文件、于干净环境构建、用虚构数据验证 EXE，并打包校验和及依赖许可。提供可复现构建步骤，但**不宣称产物逐字节一致**。
+macOS 构建（在 Mac 上执行，生成当前 Python 架构的 `.app`）：
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-dev.txt
+./build-macos.sh .venv/bin/python
+.venv/bin/python tools/smoke_executable.py dist/AIConversationCleaner.app/Contents/MacOS/AIConversationCleaner
+.venv/bin/python tools/package_release.py
+open dist/AIConversationCleaner.app
+```
+
+构建采用 PyInstaller 的目录式 `.app`，压缩时保留软链接、执行权限和签名；参见 [PyInstaller 官方说明](https://pyinstaller.org/en/stable/usage.html#building-macos-app-bundles)。Mac 上“选择文件夹…”使用系统原生窗口，“打开备份目录”使用 Finder。退出 Codex 时也要退出承载它的 ChatGPT 桌面应用（如有）。
+
+正常测试使用隔离虚构数据，不删除真实会话。可选探针见 [CONTRIBUTING.md](CONTRIBUTING.md)。CI 配置覆盖 Windows x64、macOS arm64 和 x86_64：运行测试、检查公开文件、于干净环境构建、用虚构数据验证打包应用，并生成校验和及依赖许可。macOS 另验证解压后应用的签名。提供可复现构建步骤，但**不宣称产物逐字节一致**。
 
 ## 许可证
 

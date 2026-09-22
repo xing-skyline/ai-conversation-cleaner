@@ -1,6 +1,6 @@
 # Contributing
 
-Use Windows and Python 3.11+ (CI uses 3.13). Prefer explicit ownership checks over broad filename matching. Keep changes scoped to recognized storage formats.
+Use Windows or macOS and Python 3.11+ (CI uses 3.13). Prefer explicit ownership checks over broad filename matching. Keep changes scoped to recognized storage formats.
 
 ```powershell
 python -m unittest discover -s tests -v
@@ -26,5 +26,17 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 .\build.ps1 -Python .\.venv\Scripts\python.exe
 ```
+
+On macOS:
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-dev.txt
+./build-macos.sh .venv/bin/python
+.venv/bin/python tools/smoke_executable.py dist/AIConversationCleaner.app/Contents/MacOS/AIConversationCleaner
+.venv/bin/python tools/package_release.py
+```
+
+Build macOS bundles on a Mac of the target architecture. The CI matrix uses [GitHub's Apple Silicon and Intel runners](https://docs.github.com/en/actions/reference/runners/github-hosted-runners). Tests include native data paths, Node/Bun/native process matching, folder integration and cross-process operation locks. Cursor's macOS path follows the [vendor's documented data location](https://docs.cursor.com/en/troubleshooting/troubleshooting-guide).
 
 GitHub CI builds the public archive in a clean environment and smoke-tests the executable. Packaging uses an explicit public file list. Do not publish binaries gathered from a personal environment as official assets.

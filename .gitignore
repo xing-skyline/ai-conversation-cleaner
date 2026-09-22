@@ -6,6 +6,8 @@ build/
 dist/
 *.spec
 *.exe
+*.app/
+.DS_Store
 .test-artifacts/
 .local-reports/
 .venv/

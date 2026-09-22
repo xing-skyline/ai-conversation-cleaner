@@ -1,0 +1,58 @@
+name: macOS tests and build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+      - name: Check public files and frontend syntax
+        run: |
+          python tools/check_public_files.py
+          node --check web/app.js
+      - name: Create an isolated build environment
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install -r requirements-dev.txt
+      - name: Test and build
+        run: bash build-macos.sh .venv/bin/python
+      - name: Verify a real inert Node process is detected
+        run: .venv/bin/python -m tests.probe_node_guard
+      - name: Smoke-test the app using synthetic data only
+        run: .venv/bin/python tools/smoke_executable.py dist/AIConversationCleaner.app/Contents/MacOS/AIConversationCleaner
+      - name: Package and verify the extracted app signature
+        run: |
+          .venv/bin/python tools/package_release.py
+          ditto -x -k release/AIConversationCleaner-macOS-${{ matrix.arch }}.zip "$RUNNER_TEMP/cleaner-unpacked"
+          codesign --verify --deep --strict "$RUNNER_TEMP/cleaner-unpacked/AIConversationCleaner.app"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: macos-${{ matrix.arch }}
+          path: |
+            release/AIConversationCleaner-macOS-${{ matrix.arch }}.zip
+            release/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14

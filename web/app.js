@@ -9,7 +9,7 @@ async function browserEvent(event) {
   const result = await fetch('/api/browser', {method:'POST', keepalive:true,
     headers:{'X-Cleaner-Token':token,'Content-Type':'application/json'},
     body:JSON.stringify({client_id:browserClient,event,sequence:++browserSequence})});
-  if (!result.ok) throw new Error('清理器后台已退出，请重新双击 EXE 启动。');
+  if (!result.ok) throw new Error('清理器后台已退出，请重新打开 AI 会话清理器。');
 }
 function heartbeat() { if(!quitting)browserEvent('heartbeat').catch(()=>{}); }
 addEventListener('pageshow',heartbeat);
@@ -26,12 +26,13 @@ async function api(path, body) {
 }
 function node(tag, text, className) { const n=document.createElement(tag); if(text!==undefined)n.textContent=text;if(className)n.className=className;return n; }
 function backupChoice(){return {mode:$('backup-mode').value,directory:$('backup-directory').value.trim()};}
-function backupLocation(choice){return choice.mode==='custom'?`${choice.directory}\\AIConversationCleaner\\${app}`:choice.directory;}
+function joinPath(root,...parts){const sep=data?.path_separator || '/';return root.replace(/[\\/]+$/,'')+sep+parts.join(sep);}
+function backupLocation(choice){return choice.mode==='custom'?joinPath(choice.directory,'AIConversationCleaner',app):choice.directory;}
 function updateBackupUI(){
   const choice=backupChoice(), none=choice.mode==='none';
   $('custom-backup').hidden=choice.mode!=='custom';$('backup-note').classList.toggle('warning',none);$('backups').disabled=none;
   $('backup-note').textContent=none?'本次不复制会话或数据库。删除后无法通过本工具恢复；中途失败也无法自动回滚。已有备份不会删除。':
-    choice.mode==='custom'?(choice.directory?`备份保存在：${backupLocation(choice)}\\时间戳。不会覆盖文件夹内的其他文件。`:'选择文件夹，或直接输入完整路径；不要放入应用的会话数据目录。'):
+    choice.mode==='custom'?(choice.directory?`备份保存在：${joinPath(backupLocation(choice),'时间戳')}。不会覆盖文件夹内的其他文件。`:'选择文件夹，或直接输入完整路径；不要放入应用的会话数据目录。'):
     `默认备份目录：${data?.backup_root || '加载中'}。每次删除单独保存一份。`;
 }
 function render() {
@@ -97,7 +98,7 @@ $('preview').addEventListener('click',async()=>{
     plan=await api('preview',{ids:[...selected],backup:backupChoice()});$('plan-summary').textContent=`将删除 ${plan.rows.length} 个任务、${plan.file_count} 个会话文件（${size(plan.bytes)}）。`;
     const noBackup=plan.backup.mode==='none';
     $('confirm-note').classList.toggle('error',noBackup);
-    $('confirm-note').textContent=`请先退出 ${data.label}${app==='codex'?' 桌面端与 Codex CLI':''}。\n`+(noBackup?'不备份，直接删除。误删或中途失败后无法自动恢复；已有备份保留。':`先备份再删除。备份位置：${backupLocation(plan.backup)}\\时间戳`);
+    $('confirm-note').textContent=`请先退出 ${data.label}${app==='codex'?' 桌面端与 Codex CLI':''}。\n`+(noBackup?'不备份，直接删除。误删或中途失败后无法自动恢复；已有备份保留。':`先备份再删除。备份位置：${joinPath(backupLocation(plan.backup),'时间戳')}`);
     $('execute').textContent=noBackup?'直接删除（不备份）':'备份并删除';
     $('plan-list').replaceChildren();for(const r of plan.rows){const li=node('li',r.title);li.append(node('small',r.id));$('plan-list').append(li);}
     $('execute').disabled=false;$('confirm-dialog').showModal();

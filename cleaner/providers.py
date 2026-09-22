@@ -9,6 +9,7 @@ import json
 import os
 import shutil
 import sqlite3
+import sys
 import threading
 from pathlib import Path
 from urllib.parse import unquote
@@ -85,7 +86,7 @@ class LocalProvider:
         self.app = app
         self.label = LABELS[app]
         self.profile = canonical_path(profile or Path.home())
-        roaming = self.profile / "AppData/Roaming"
+        roaming = self.profile / ("Library/Application Support" if sys.platform == 'darwin' else "AppData/Roaming")
         self.roots = {
             "claude": [self.profile/".claude"],
             "grok": [self.profile/".grok"],
@@ -95,7 +96,8 @@ class LocalProvider:
             "opencode": [self.profile/".local/share/opencode"],
         }[app]
         self.home = self.roots[0]
-        self.backup_root = self.profile / "AppData/Local/AIConversationCleaner/backups" / app
+        local = self.profile / ("Library/Application Support" if sys.platform == 'darwin' else "AppData/Local")
+        self.backup_root = local / "AIConversationCleaner/backups" / app
         self.process_provider = process_provider or (dsh_processes if app=='deepseek' else lambda: cli_processes(app,PROCESSES[app]))
         self.lock = threading.Lock()
 

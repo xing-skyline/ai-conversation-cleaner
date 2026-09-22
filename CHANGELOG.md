@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.3.0 — macOS support
+
+- Use native macOS storage and backup directories while keeping all seven adapters and backup policies.
+- Detect macOS desktop/CLI processes, Electron helpers and known Node/Bun launch paths; refuse deletion when process inspection fails.
+- Add native folder selection, Finder backup opening, POSIX path display, Codex CLI discovery for Finder launches, and nonblocking process locks.
+- Add a double-click source launcher, a standalone `.app` build, and Apple Silicon/Intel CI packages with preserved bundle symlinks and signatures.
+- Cover platform paths, process matching, folder integration and cross-process exclusion with isolated regressions.
+- Ignore suffixed Codex database backup files when identifying live versioned databases; multiple actual live versions still block cleanup.
+
 ## 1.2.2 — Codex catalog auxiliary records
 
 - Adapt `inbox_items`, `automation_runs` and `live_visualization_suggestions`, checked against Codex desktop 26.915.4065.0.

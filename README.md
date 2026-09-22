@@ -2,9 +2,9 @@
 
 English · [简体中文](README.zh-CN.md)
 
-A Windows utility for reviewing and deleting **local conversations** from Codex, Claude Code, Grok Build, Cursor, Google Antigravity, DeepSeek Harness, and OpenCode. Search, inspect, select, preview, then delete—with a default backup, a backup folder you choose, or no backup.
+A Windows and macOS utility for reviewing and deleting **local conversations** from Codex, Claude Code, Grok Build, Cursor, Google Antigravity, DeepSeek Harness, and OpenCode. Search, inspect, select, preview, then delete—with a default backup, a backup folder you choose, or no backup.
 
-**Public preview · Windows x64 · Simplified Chinese interface.** An independent community project, not affiliated with the supported applications' vendors.
+**Public preview · Windows x64 / macOS Apple Silicon and Intel · Simplified Chinese interface.** An independent community project, not affiliated with the supported applications' vendors.
 
 > Deletion changes application data directly. Keep the target application and its CLI/background processes closed. Try the isolated demo first and keep backups enabled until you have verified compatibility with your installed versions.
 
@@ -12,9 +12,11 @@ A Windows utility for reviewing and deleting **local conversations** from Codex,
 
 Download `AIConversationCleaner-Windows-x64.zip` from [Releases](https://github.com/xing-skyline/ai-conversation-cleaner/releases), extract it, and double-click **`AIConversationCleaner.exe`**. Python, Node.js and CMD are not required. Source builds use the filename `AI会话清理器.exe`.
 
-The executable opens a browser page served only on `127.0.0.1` with a per-launch access token. It is a local application, not a hosted service. Click **退出工具** (“Exit tool”) to stop the current instance, or close its last browser tab: the backend then exits after a 3-second refresh grace period. Other tabs for that instance keep it alive. Deletion, backup and other active requests finish before shutdown. A lost/crashed browser connection expires after approximately 3 minutes; a browser that never connects times out after 2 minutes. A tab frozen/discarded by the browser for that long may require relaunching the EXE. Headless `--no-browser` use is not timed out unless a browser page has connected.
+On macOS, download `AIConversationCleaner-macOS-arm64.zip` (Apple Silicon) or `AIConversationCleaner-macOS-x86_64.zip` (Intel) from [Releases](https://github.com/xing-skyline/ai-conversation-cleaner/releases), extract it, and double-click **`AIConversationCleaner.app`** or drag it into Applications. The bundle includes Python; no separate Python or Node.js installation is required. Source builds produce `dist/AIConversationCleaner.app`.
 
-The executable is **unsigned**. Verify release SHA-256 checksums. If Windows blocks it, do not disable system security protections; review the source or build it yourself instead.
+The application opens a browser page served only on `127.0.0.1` with a per-launch access token. It is a local application, not a hosted service. Click **退出工具** (“Exit tool”) to stop the current instance, or close its last browser tab: the backend then exits after a 3-second refresh grace period. Other tabs for that instance keep it alive. Deletion, backup and other active requests finish before shutdown. A lost/crashed browser connection expires after approximately 3 minutes; a browser that never connects times out after 2 minutes. A tab frozen/discarded by the browser for that long may require relaunching the application. Headless `--no-browser` use is not timed out unless a browser page has connected.
+
+The Windows executable is **unsigned**. macOS bundles use ad-hoc signing, without Developer ID signing or Apple notarization. Verify release SHA-256 checksums. If the OS blocks it, do not disable system security protections; review the source or build it yourself instead.
 
 ## Usage
 
@@ -25,7 +27,7 @@ The executable is **unsigned**. Verify release SHA-256 checksums. If Windows blo
    | Option | Behavior |
    | --- | --- |
    | 备份到默认目录 | Back up first, using the default location. |
-   | 手动选择备份目录 | Open the Windows folder picker or enter an absolute path. Backups go under `selected-folder/AIConversationCleaner/app/timestamp`. |
+   | 手动选择备份目录 | Open the native folder picker or enter an absolute path. Backups go under `selected-folder/AIConversationCleaner/app/timestamp`. |
    | 不备份，直接删除 | No conversation/database backup. Committed changes cannot be automatically restored after an error. |
 
 4. Exit the target application, its CLI and background processes.
@@ -48,7 +50,7 @@ Each fresh launch defaults to backup; no-backup is never remembered automaticall
 
 This is **actual removal from recognized active local storage**, not an archive toggle. It is **not secure erasure**: old backups, generic logs, shared caches, database free pages, cloud history and OS recovery mechanisms may retain data. Project source/documents, credentials, settings, skills and plugins are not cleanup targets.
 
-Default per-user Windows locations are supported. Codex also supports `CODEX_HOME` / `--home`; OpenCode defaults to `%USERPROFILE%/.local/share/opencode`, honors `XDG_DATA_HOME` and `OPENCODE_DB` (except in-memory databases), and uses the standard `opencode.db` unless explicitly overridden. Other applications' custom homes, WSL, SSH/remote hosts, cloud agents and unrelated editor extensions are outside scope. Codex does not have to be installed to open the other tabs.
+Default per-user Windows and macOS locations are supported. Codex also supports `CODEX_HOME` / `--home`; OpenCode defaults to `~/.local/share/opencode`, honors `XDG_DATA_HOME` and `OPENCODE_DB` (except in-memory databases), and uses the standard `opencode.db` unless explicitly overridden. Other applications' custom homes, WSL, SSH/remote hosts, cloud agents and unrelated editor extensions are outside scope. Codex does not have to be installed to open the other tabs.
 
 OpenCode's SQLite adapter was checked against the v1.18.31 schema. Older recognized `storage/session`, `storage/message`, `storage/part` and `storage/session_diff` JSON files are also handled. Unknown session-related database tables stop deletion instead of being silently skipped. OpenCode database backups can include account/credential tables because the backup is a complete database copy; keep them private.
 
@@ -60,8 +62,11 @@ These internal upstream formats can change; **compatibility with every version i
 
 Default backup locations:
 
-- Codex: `%USERPROFILE%/.codex/backups/codex-thread-cleaner` (legacy name retained for compatibility).
-- Others: `%LOCALAPPDATA%/AIConversationCleaner/backups/<app>` under the default Windows profile layout.
+- Codex: `~/.codex/backups/codex-thread-cleaner` (relative to `CODEX_HOME` when overridden) (legacy name retained for compatibility).
+- Other apps on Windows: `%LOCALAPPDATA%/AIConversationCleaner/backups/<app>` under the default profile layout.
+- Other apps on macOS: `~/Library/Application Support/AIConversationCleaner/backups/<app>`.
+
+On macOS, Cursor indexes use `~/Library/Application Support/Cursor/User`, and Antigravity indexes use `~/Library/Application Support/Antigravity/User`. Other recognized session files use the same home-relative `.codex`, `.claude`, `.grok`, `.cursor/projects`, `.gemini`, `.dsh` and `.local/share/opencode` layouts. `~` means the current user's home directory.
 
 Backed-up batches include `result.json`, original/backup path mappings, database copies and selected files. SQLite uses its online backup API. Recoverable failures attempt rollback while the target app stays closed. Crashes or concurrent writes may require manual recovery; incomplete operations block further deletion. **Never overwrite a database with an old backup after new conversations have been created.** There is no one-click full-database restore.
 
@@ -71,7 +76,7 @@ The cleaner includes no analytics, account login or intentional cloud-conversati
 
 ## Source and development
 
-Requires Windows and Python 3.11+. Runtime code uses the standard library; Windows PowerShell provides folder selection and known Node/Bun process checks. The interface is currently Simplified Chinese.
+Requires Windows or macOS, and Python 3.11+. Runtime code uses the standard library, Windows PowerShell, or macOS system utilities (`ps`, `osascript`, `open`). Both platforms share the cleanup, backup, recovery and interface code. The interface is currently Simplified Chinese.
 
 ```powershell
 git clone https://github.com/xing-skyline/ai-conversation-cleaner.git
@@ -82,7 +87,16 @@ python run.py --app cursor --inventory  # Read-only; output can be private
 python run.py --home C:\Example\CodexData
 ```
 
-`源码启动.cmd` is only a source-development convenience, not an EXE requirement.
+On macOS:
+
+```bash
+python3 run.py
+python3 run.py --demo
+python3 run.py --app cursor --inventory  # Read-only; output can be private
+python3 run.py --home "$HOME/.codex"
+```
+
+Alternatively, double-click `源码启动.command` in Finder; it locates the project virtual environment or an installed Python 3.11+. The `.cmd` and `.command` launchers are only for source use, not packaged applications.
 
 ```powershell
 python -m unittest discover -s tests -v
@@ -95,7 +109,20 @@ python -m venv .venv
 .\build.ps1 -Python .\.venv\Scripts\python.exe
 ```
 
-Normal tests use isolated synthetic fixtures and do not delete real conversations. Optional developer probes are documented in [CONTRIBUTING.md](CONTRIBUTING.md). CI tests on Windows, checks public files, builds in a clean environment, smoke-tests the EXE against synthetic data, and packages checksums and dependency notices. Rebuild steps are provided; **byte-for-byte reproducibility is not claimed**.
+Build on macOS (targets the running Python architecture):
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-dev.txt
+./build-macos.sh .venv/bin/python
+.venv/bin/python tools/smoke_executable.py dist/AIConversationCleaner.app/Contents/MacOS/AIConversationCleaner
+.venv/bin/python tools/package_release.py
+open dist/AIConversationCleaner.app
+```
+
+The build uses a directory-based PyInstaller `.app`; ZIP packaging preserves symlinks, permissions and signatures. See [PyInstaller's bundle documentation](https://pyinstaller.org/en/stable/usage.html#building-macos-app-bundles). Folder selection uses the native macOS dialog; opening backups uses Finder. When exiting Codex, also exit the ChatGPT desktop app if it hosts Codex.
+
+Normal tests use isolated synthetic fixtures and do not delete real conversations. Optional developer probes are documented in [CONTRIBUTING.md](CONTRIBUTING.md). CI is configured for Windows x64 and macOS arm64/x86_64: public-file checks, clean builds, synthetic packaged smoke tests, checksums and dependency notices. macOS also verifies the extracted bundle signature. Rebuild steps are provided; **byte-for-byte reproducibility is not claimed**.
 
 ## License
 

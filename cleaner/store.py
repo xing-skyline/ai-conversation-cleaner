@@ -145,6 +145,8 @@ class Store:
             matches = []
             for pattern in patterns:
                 for path in self.home.glob(pattern):
+                    if role != 'catalog' and not re.fullmatch(re.escape(pattern).replace(r'\*', r'[0-9]+'), path.name):
+                        continue  # Historical backup names are never live databases.
                     path = self.inside(path)
                     with contextlib.closing(connect(path)) as con:
                         if REQUIRED[role] in tables(con):
@@ -319,12 +321,20 @@ class Store:
                     msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
                 except OSError as error:
                     raise CleanupError("另一个清理器正在操作此目录。") from error
+            else:
+                import fcntl
+                try:
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except OSError as error:
+                    raise CleanupError("另一个清理器正在操作此目录。") from error
             try:
                 yield
             finally:
                 if os.name == "nt":
                     handle.seek(0)
                     msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+                else:
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
     def backup(self, snap, run, ids):
         mapping = []
