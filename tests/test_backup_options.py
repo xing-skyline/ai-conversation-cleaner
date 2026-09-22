@@ -37,7 +37,10 @@ class BackupOptionsTests(unittest.TestCase):
         custom=self.root/'我的 备份'
         for store in self.stores:
             report=store.apply(store.preview([IDS[0]],backup={'mode':'custom','directory':str(custom)}))
-            directory=Path(report['backup_dir']);self.assertTrue(directory.is_relative_to(custom))
+            directory=Path(report['backup_dir'])
+            # Windows TEMP can use an 8.3 alias; the policy returns resolved paths.
+            self.assertTrue(directory.resolve().is_relative_to(custom.resolve()),
+                            f'{directory} is outside the selected backup directory {custom.resolve()}')
             self.assertTrue((directory/'result.json').is_file());self.assertTrue(report['backups'])
             self.assertTrue(all(Path(item['backup']).is_file() for item in report['backups']))
             self.assertFalse(list(store.backup_root.glob('*/result.json')))
