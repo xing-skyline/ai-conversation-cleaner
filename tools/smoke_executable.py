@@ -3,11 +3,16 @@ import argparse
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import time
 import urllib.request
 from pathlib import Path
 from urllib.parse import urlsplit,parse_qs
+
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from tests.test_codex_catalog import add_catalog_auxiliaries
+from tests.test_cleaner import sql
 
 
 def main():
@@ -32,6 +37,10 @@ def main():
                 with urllib.request.urlopen(request,timeout=30) as response:return json.load(response)
             call=api
             inventory=api('inventory');assert inventory['demo'] and len(inventory['rows'])==4
+            # The executable created this isolated --demo home; never a real profile.
+            catalog=Path(inventory['home'])/'sqlite/codex-dev.db'
+            add_catalog_auxiliaries(catalog)
+            remote=sql(catalog,"SELECT * FROM live_visualization_suggestions WHERE host_id<>'local' ORDER BY host_id,thread_id")
             for index,mode in enumerate(['none','custom','default']):
                 plan=api('preview',{'ids':[inventory['rows'][index]['id']],
                                    'backup':{'mode':mode,'directory':str(root/'chosen-backups')}})
@@ -40,7 +49,13 @@ def main():
                 if mode=='none':assert result['backup_dir'] is None and result['backups']==[]
                 else:assert Path(result['backup_dir'],'result.json').is_file()
             assert len(api('inventory')['rows'])==1
+            assert sql(catalog,'SELECT count(*) FROM automation_runs')==[(0,)]
+            assert sql(catalog,'SELECT count(*) FROM inbox_items WHERE thread_id IS NOT NULL')==[(0,)]
+            assert sql(catalog,"SELECT count(*) FROM live_visualization_suggestions WHERE host_id='local'")==[(0,)]
+            assert sql(catalog,"SELECT * FROM live_visualization_suggestions WHERE host_id<>'local' ORDER BY host_id,thread_id")==remote
+            assert sql(catalog,'SELECT count(*) FROM automations')==[(1,)]
             print('Packaged demo smoke test passed: none/custom/default backup modes.')
+            print('Packaged Codex catalog auxiliaries passed; remote suggestions and automation definition preserved.')
         finally:
             if call:
                 try:call('quit',{})

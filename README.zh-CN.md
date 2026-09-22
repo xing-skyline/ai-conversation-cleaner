@@ -38,7 +38,7 @@ EXE **没有数字签名**，可使用发布页面提供的 SHA-256 校验文件
 
 | 应用 | 已识别的本地记录 |
 | --- | --- |
-| Codex | 本地桌面目录、主状态、已适配消息/目标/队列/记忆记录、session index 和 JSONL。优先尝试已安装 CLI 的 `thread/delete`，再清理已识别残留；保留非本地主机目录条目。 |
+| Codex | 本地桌面目录、主状态、已适配消息/目标/队列/记忆记录、收件箱关联、自动化运行记录、可视化建议、session index 和 JSONL。优先尝试已安装 CLI 的 `thread/delete`，再清理已识别残留；保留非本地主机目录条目、远端可视化建议和自动化定义。 |
 | Claude Code | `.claude/projects` 转录、所属附属文件和子目录、会话索引、对应 history 条目及已识别辅助文件。 |
 | Grok Build | `.grok/sessions` 会话目录、提示历史、活动索引、搜索数据库和 FTS 索引。 |
 | Cursor | 已适配 composer、独立消息/检查点/差异键、工作区索引和独立转录；保留跨会话共享内容缓存。 |
@@ -51,6 +51,8 @@ EXE **没有数字签名**，可使用发布页面提供的 SHA-256 校验文件
 支持默认用户级 Windows 数据目录；Codex 额外支持 `CODEX_HOME` / `--home`。OpenCode 默认读取 `%USERPROFILE%/.local/share/opencode`，支持 `XDG_DATA_HOME` 和 `OPENCODE_DB`（不含内存数据库），未指定时读取标准 `opencode.db`。其余应用的自定义目录、WSL、SSH/远端任务、云端 Agent、无关编辑器插件不在适配范围内。未安装 Codex 不影响其他应用标签启动。
 
 OpenCode SQLite 适配已核对 v1.18.31 表结构，同时处理已识别的旧版 `storage/session`、`storage/message`、`storage/part` 和 `storage/session_diff` JSON 文件。发现未知会话关联表时会停止删除，不会静默跳过。OpenCode 数据库备份是整库副本，可能包含账号与凭据信息，请勿公开或上传。
+
+Codex 目录关联表已核对桌面版 26.915.4065.0 的结构。`inbox_items` 和 `automation_runs` 没有主机字段，按所选任务 ID 匹配；若同 ID 还出现在非本地主机目录中，会因无法确认归属而停止。`live_visualization_suggestions` 同时限定本地主机与所选任务。未知关联表仍会拦截，并提前在删除预览阶段报告。
 
 应用内部格式会随升级变化，**不保证所有版本兼容**。目前识别 DeepSeek 分会话缓存版本 5/7、共享摘要版本 3、工作区版本 2。若干未知结构会阻止处理，但不保证识别所有上游变化。进程保护覆盖已知原生可执行文件和 Node/Bun 路径，不保证识别所有自定义启动器和插件，因此仍需手动退出原应用。
 

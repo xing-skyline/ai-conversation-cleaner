@@ -38,7 +38,7 @@ Each fresh launch defaults to backup; no-backup is never remembered automaticall
 
 | Application | Recognized local deletion scope |
 | --- | --- |
-| Codex | Local desktop catalog, thread state, recognized message/goal/queue/memory records, session index and owned JSONL rollouts. Attempts the installed CLI's `thread/delete`, then removes known remnants. Remote catalog entries are preserved. |
+| Codex | Local desktop catalog, thread state, recognized message/goal/queue/memory records, inbox references, automation runs, visualization suggestions, session index and owned JSONL rollouts. Attempts the installed CLI's `thread/delete`, then removes known remnants. Remote catalog entries/suggestions and automation definitions are preserved. |
 | Claude Code | `.claude/projects` transcripts and owned sidecars/subdirectories, session indexes, matching history entries and recognized session auxiliaries. |
 | Grok Build | `.grok/sessions` directories, prompt history, active-session entries and search/FTS indexes. |
 | Cursor | Recognized composer headers/data, owned message/checkpoint/diff keys, workspace indexes and independent transcripts. Shared content-addressed blobs are preserved. |
@@ -51,6 +51,8 @@ This is **actual removal from recognized active local storage**, not an archive 
 Default per-user Windows locations are supported. Codex also supports `CODEX_HOME` / `--home`; OpenCode defaults to `%USERPROFILE%/.local/share/opencode`, honors `XDG_DATA_HOME` and `OPENCODE_DB` (except in-memory databases), and uses the standard `opencode.db` unless explicitly overridden. Other applications' custom homes, WSL, SSH/remote hosts, cloud agents and unrelated editor extensions are outside scope. Codex does not have to be installed to open the other tabs.
 
 OpenCode's SQLite adapter was checked against the v1.18.31 schema. Older recognized `storage/session`, `storage/message`, `storage/part` and `storage/session_diff` JSON files are also handled. Unknown session-related database tables stop deletion instead of being silently skipped. OpenCode database backups can include account/credential tables because the backup is a complete database copy; keep them private.
+
+Codex catalog auxiliaries were checked against desktop 26.915.4065.0. `inbox_items` and `automation_runs` have no host field and match selected thread IDs; a matching ID also present in a non-local catalog host stops deletion because ownership is ambiguous. `live_visualization_suggestions` is restricted to the local host and selected threads. Unknown related tables still block deletion and are now reported during preview.
 
 These internal upstream formats can change; **compatibility with every version is not guaranteed**. DeepSeek cache versions 5/7, shared projection version 3 and workspace version 2 are recognized. Several unexpected structures stop processing, but not every upstream change can be detected. Known executable and Node/Bun paths are checked; custom launchers/plugins may escape detection, so closing the target application yourself remains mandatory.
 

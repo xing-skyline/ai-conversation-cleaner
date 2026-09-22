@@ -21,7 +21,8 @@ UUID = re.compile(r"[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}", re.I)
 FILE_ROOTS = {"sessions", "archived_sessions"}
 RULES = {
     "catalog": {"local_thread_catalog": ("thread_id",), "thread_timeline_ledger": ("thread_id",),
-                "local_thread_catalog_scan_entries": ("thread_id",)},
+                "local_thread_catalog_scan_entries": ("thread_id",), "inbox_items": ("thread_id",),
+                "automation_runs": ("thread_id",), "live_visualization_suggestions": ("thread_id",)},
     "state": {"threads": ("id",), "thread_dynamic_tools": ("thread_id",),
               "thread_attachments": ("thread_id",), "thread_spawn_edges": ("parent_thread_id", "child_thread_id")},
     "history": {"thread_turns": ("thread_id",), "thread_items": ("thread_id",),
@@ -35,6 +36,13 @@ PATTERNS = {"catalog": ["sqlite/*.db", "sqlite/*.sqlite"], "state": ["state_*.sq
             "memories": ["memories_*.sqlite"], "queue": ["queue_*.sqlite"]}
 REQUIRED = {"catalog": "local_thread_catalog", "state": "threads", "history": "thread_items",
             "goals": "thread_goals", "memories": "stage1_outputs", "queue": "queued_items"}
+CATALOG_UNSCOPED = {"inbox_items", "automation_runs"}
+CATALOG_AUXILIARIES = CATALOG_UNSCOPED | {"live_visualization_suggestions"}
+CATALOG_AUX_REQUIRED = {
+    "inbox_items": {"id", "thread_id"},
+    "automation_runs": {"thread_id", "automation_id"},
+    "live_visualization_suggestions": {"account_id", "user_id", "host_id", "thread_id", "id"},
+}
 
 
 class CleanupError(RuntimeError):
@@ -99,6 +107,21 @@ def tables(con):
 
 def columns(con, table):
     return {row[1] for row in con.execute(f"PRAGMA table_info({quote(table)})")}
+
+
+def validate_catalog_ownership(con, ids, local_host, alias="main"):
+    """Legacy tables have no host field; refuse ambiguous cross-host thread IDs."""
+    prefix = quote(alias) + "."
+    names = {r[0] for r in con.execute(f"SELECT name FROM {prefix}sqlite_master WHERE type='table'")}
+    marks = ",".join("?" for _ in ids)
+    for table in sorted(CATALOG_UNSCOPED & names):
+        ambiguous = con.execute(
+            f"SELECT 1 FROM {prefix}{quote(table)} AS a WHERE a.thread_id IN ({marks}) "
+            f"AND EXISTS (SELECT 1 FROM {prefix}local_thread_catalog AS c "
+            "WHERE c.thread_id=a.thread_id AND c.host_id<>?) LIMIT 1", [*ids, local_host]
+        ).fetchone()
+        if ambiguous:
+            raise CleanupError(f"catalog.{table} 存在同 ID 跨主机记录，无法确认归属；停止删除。")
 
 
 def file_stamp(path):
@@ -179,6 +202,10 @@ class Store:
                 schema = list(con.execute("SELECT name,sql FROM sqlite_master WHERE type='table' ORDER BY name"))
                 raw_data[role]["schema"] = [list(r) for r in schema]
                 if role == "catalog":
+                    for table in sorted(CATALOG_AUXILIARIES & tables(con)):
+                        order = ",".join(quote(c) for c in sorted(columns(con, table)))
+                        raw_data[role][table] = [list(r) for r in con.execute(
+                            f"SELECT * FROM {quote(table)} ORDER BY {order}")]
                     hosts = [dict(r) for r in con.execute("SELECT * FROM local_thread_catalog_hosts")]
                     local = [h["host_id"] for h in hosts if h["host_kind"] == "local"]
                     if len(local) != 1:
@@ -247,6 +274,10 @@ class Store:
         by_id = {r["id"]: r for r in snap["rows"]}
         if not ids <= by_id.keys():
             raise CleanupError("选中的任务已经变化，请刷新列表。")
+        self.validate_rules(snap["databases"])
+        if "catalog" in snap["databases"]:
+            with contextlib.closing(connect(Path(snap["databases"]["catalog"]))) as con:
+                validate_catalog_ownership(con, sorted(ids), snap["local_host"])
         # A kept fork may need its parent's source rollout. Require the user to
         # include dependent forks instead of silently breaking their histories.
         dependent = []
@@ -332,6 +363,14 @@ class Store:
                         raise CleanupError(f"发现未适配的任务关联表 {role}.{table}；停止删除。")
                     if table in RULES[role] and not set(RULES[role][table]) <= cols:
                         raise CleanupError(f"任务表结构已变化：{role}.{table}")
+                    if role == "catalog" and table in RULES[role]:
+                        if ("host_id" in cols) != (table not in CATALOG_UNSCOPED):
+                            raise CleanupError(f"任务表主机范围结构已变化：{role}.{table}")
+                        if table in CATALOG_AUX_REQUIRED and (
+                            not CATALOG_AUX_REQUIRED[table] <= cols
+                            or cols & {"parent_thread_id", "child_thread_id"}
+                        ):
+                            raise CleanupError(f"任务表结构已变化：{role}.{table}")
 
     def delete_remnants(self, snap, ids):
         dbs = {k: Path(v) for k,v in snap["databases"].items()}
@@ -348,6 +387,7 @@ class Store:
                 catalog_alias = aliases.get("catalog")
                 cloud_before = []
                 if catalog_alias:
+                    validate_catalog_ownership(con, ids, snap["local_host"], catalog_alias)
                     cloud_before = [list(r) for r in con.execute(f"SELECT * FROM {catalog_alias}.local_thread_catalog WHERE host_id<>? ORDER BY host_id,thread_id", (snap["local_host"],))]
                 marks = ",".join("?" for _ in ids)
                 counts = {}
@@ -358,7 +398,7 @@ class Store:
                             continue
                         condition = " OR ".join(f"{quote(c)} IN ({marks})" for c in cols)
                         parameters = list(ids) * len(cols)
-                        if role == "catalog":
+                        if role == "catalog" and table not in CATALOG_UNSCOPED:
                             condition = f"host_id=? AND ({condition})"
                             parameters.insert(0, snap["local_host"])
                         count = con.execute(f"DELETE FROM {alias}.{quote(table)} WHERE {condition}", parameters).rowcount

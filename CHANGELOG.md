@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.2 — Codex catalog auxiliary records
+
+- Adapt `inbox_items`, `automation_runs` and `live_visualization_suggestions`, checked against Codex desktop 26.915.4065.0.
+- Remove only selected thread references; preserve automation definitions and host-scoped remote suggestions. Refuse ambiguous cross-host IDs in legacy tables that have no host field.
+- Check schema compatibility at preview time and include auxiliary changes in stale-preview detection.
+- Add synthetic regressions and packaged deletion checks for these tables, unrelated-data preservation and backup rollback.
+
 ## 1.2.1 — Exit when the browser closes
 
 - Exit the backend after the last browser page closes, with a refresh grace period and a heartbeat fallback for lost browser connections.
