@@ -94,4 +94,4 @@ Normal tests use isolated synthetic fixtures and do not delete real conversation
 
 ## License
 
-The owner has not yet selected an open-source license. Until a license is added, no general permission to reuse, modify or redistribute this project's code is granted. Third-party components retain their own licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+This project is open source under the [MIT License](LICENSE). You may use, modify and redistribute it, including commercially, provided the copyright and license notices are retained. The software is provided without warranty. Third-party components retain their own licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

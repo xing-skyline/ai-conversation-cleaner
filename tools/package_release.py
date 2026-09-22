@@ -18,9 +18,8 @@ def main():
     with tempfile.TemporaryDirectory(prefix='ai-cleaner-public-package-') as directory:
         stage=Path(directory)
         shutil.copy2(executable,stage/'AIConversationCleaner.exe')
-        for name in ['README.md','README.zh-CN.md','SECURITY.md','THIRD_PARTY_NOTICES.md','CHANGELOG.md']:
+        for name in ['LICENSE','README.md','README.zh-CN.md','SECURITY.md','THIRD_PARTY_NOTICES.md','CHANGELOG.md']:
             shutil.copy2(ROOT/name,stage/name)
-        if (ROOT/'LICENSE').is_file():shutil.copy2(ROOT/'LICENSE',stage/'LICENSE')
         licenses=stage/'licenses';licenses.mkdir()
         python_license=Path(sys.base_prefix)/'LICENSE.txt'
         if not python_license.is_file():raise SystemExit('Python runtime license not found; refusing to package.')

@@ -94,4 +94,4 @@ python -m venv .venv
 
 ## 许可证
 
-项目所有者尚未选定开源许可证。在添加许可证前，不授予对本项目代码进行一般使用、修改或再分发的许可。第三方组件保留各自许可，见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+本项目采用 [MIT 开源许可证](LICENSE)。允许使用、修改和再分发，包括商业用途；须保留版权声明和许可证。软件按现状提供，不附带担保。第三方组件保留各自许可，见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
