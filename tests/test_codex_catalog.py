@@ -86,9 +86,9 @@ class CodexCatalogTests(unittest.TestCase):
     def test_failure_restores_auxiliaries_with_backup(self):
         before={table:sql(self.db,'SELECT * FROM '+table) for table in
                 ('inbox_items','automation_runs','live_visualization_suggestions','automations')}
-        with patch.object(self.store,'prune_files',side_effect=OSError('Synthetic failure')):
+        with tempfile.TemporaryDirectory() as outside,patch.object(self.store,'prune_files',side_effect=OSError('Synthetic failure')):
             with self.assertRaisesRegex(CleanupError,'rolled_back'):
-                self.store.apply(self.store.preview([IDS[1]]))
+                self.store.apply(self.store.preview([IDS[1]],backup={'mode':'custom','directory':outside}))
         for table,rows in before.items():
             self.assertEqual(sql(self.db,'SELECT * FROM '+table),rows)
 

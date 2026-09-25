@@ -21,6 +21,13 @@ class BackupOptionsTests(unittest.TestCase):
 
     def tearDown(self):self.temp.cleanup()
 
+    def test_omitted_backup_defaults_to_none(self):
+        for store in self.stores:
+            plan=store.preview([IDS[0]])
+            self.assertEqual(plan['backup'],{'mode':'none','directory':None})
+            report=store.apply(plan)
+            self.assertIsNone(report['backup_dir']);self.assertEqual(report['backups'],[])
+
     def test_no_backup_does_not_copy_content(self):
         for store in self.stores:
             with self.subTest(store=type(store).__name__),patch('shutil.copy2',side_effect=AssertionError('must not copy')):
@@ -74,7 +81,7 @@ class BackupOptionsTests(unittest.TestCase):
 
     def test_invalid_policy_and_active_data_directory_rejected(self):
         for store in self.stores:
-            for choice in [{'mode':'other'},{'mode':'custom','directory':''},{'mode':'custom','directory':'relative'},
+            for choice in [{'mode':'default'},{'mode':'other'},{'mode':'custom','directory':''},{'mode':'custom','directory':'relative'},
                            {'mode':'custom','directory':str(store.home/'sessions')}]:
                 with self.subTest(choice=choice),self.assertRaises(CleanupError):store.preview([IDS[0]],backup=choice)
 

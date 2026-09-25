@@ -109,7 +109,7 @@ class OpenCodeTests(unittest.TestCase):
             store.apply(store.preview([SELECTED]))
         self.assertEqual(sql(self.db, 'SELECT count(*) FROM session'), [(2,)])
 
-    def test_default_and_custom_backups_and_rollback(self):
+    def test_custom_backup_and_rollback(self):
         store = self.provider()
         original = store.snapshot
         failed = False
@@ -125,7 +125,7 @@ class OpenCodeTests(unittest.TestCase):
                 store.apply(store.preview([SELECTED], backup={'mode':'custom','directory':str(self.profile/'chosen')}))
         self.assertEqual({r['id'] for r in store.inventory()['rows']}, {SELECTED, KEPT})
         self.assertTrue((self.root/'storage/session_diff'/(SELECTED+'.json')).exists())
-        result = store.apply(store.preview([SELECTED]))
+        result = store.apply(store.preview([SELECTED], backup={'mode':'custom','directory':str(self.profile/'chosen')}))
         self.assertTrue(Path(result['backup_dir'],'result.json').is_file())
 
     def test_running_and_stale_previews_block(self):

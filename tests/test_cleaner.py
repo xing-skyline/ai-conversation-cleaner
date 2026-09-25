@@ -58,7 +58,7 @@ class CodexTests(unittest.TestCase):
         for target in [IDS[0],IDS[1],IDS[2],IDS[3]]:
             report=self.store.apply(self.store.preview([target]));self.assertEqual(report['deleted'],1)
             self.assertEqual(report['chatgpt_after'],1)
-            self.assertTrue(Path(report['backup_dir'],'result.json').is_file())
+            self.assertIsNone(report['backup_dir'])
         self.assertEqual(self.store.inventory()['rows'],[])
         self.assertEqual(sql(self.root/'sqlite/codex-dev.db','SELECT count(*) FROM local_thread_catalog')[0][0],2)
         self.assertEqual(sql(self.root/'thread_history_1.sqlite','SELECT count(*) FROM thread_items')[0][0],0)
@@ -82,8 +82,8 @@ class CodexTests(unittest.TestCase):
             with self.assertRaisesRegex(CleanupError,'超出'):self.store.preview([IDS[0]])
     def test_failure_restores_databases_and_files(self):
         original=self.store.snapshot()['fingerprint']
-        with patch.object(self.store,'prune_files',side_effect=OSError('injected failure')):
-            with self.assertRaisesRegex(CleanupError,'rolled_back'):self.store.apply(self.store.preview([IDS[0]]))
+        with tempfile.TemporaryDirectory() as outside,patch.object(self.store,'prune_files',side_effect=OSError('injected failure')):
+            with self.assertRaisesRegex(CleanupError,'rolled_back'):self.store.apply(self.store.preview([IDS[0]],backup={'mode':'custom','directory':outside}))
         self.assertEqual(len(self.store.inventory()['rows']),4)
         self.assertEqual(len(self.store.detail(IDS[0])['messages']),2)
     def test_fork_dependency(self):
@@ -120,6 +120,26 @@ class ProviderTests(unittest.TestCase):
         self.assertEqual(workspace['tables']['workspaces'][selected]['sessionIds'],[keep])
         self.assertTrue((root/'.deleted-sessions'/selected/'old.json').exists())
         self.assertTrue((root/'settings.yaml').exists())
+    def test_deepseek_v4_log_pinned_session_and_compatible_cache(self):
+        root=self.root/'.dsh';selected='session-'+IDS[0];keep=IDS[1]
+        folder=root/'sessions'/'--D-work--'/selected
+        put(folder/'session.v3.jsonl.zstd',{'generation':3})
+        put(folder/'session.v4.jsonl.zstd',{'generation':4})
+        put(folder/'artifacts'/'extra.bin',{'keep':'inside session'})
+        put(root/'storages/session_projcache/sessions'/(selected+'.json'),{'version':7,'record':{'identity':{'formatVersion':4,'cwd':'D:\\work','createdAt':1000},'rows':{'title':{'val':'当前会话'},'titleInput':{'val':{'first':{'seq':1,'text':'hello v4'}}}}}})
+        put(root/'storages/session_projcache/sessions'/(keep+'.json'),{'version':6,'record':{'identity':{'formatVersion':3,'cwd':'D:\\work','createdAt':1000},'rows':{'title':{'val':'保留'}}}})
+        put(root/'sessions'/'--D-work--'/keep/'session.v4.jsonl.zstd',{'generation':4})
+        put(root/'storages/session_projcache.json',{'unit':{'name':'session_projcache','version':3},'global':None,'tables':{'sessions':{}}})
+        put(root/'storages/workspace.json',{'unit':{'name':'workspace','version':2},'global':{'initialized':True,'workspaceIds':['ws'],'archivedSessionIds':[],'pinnedSessionIds':[selected,keep]},'tables':{'workspaces':{'ws':{'path':'D:\\work','sessionIds':[selected,keep]}}}})
+        store=self.provider('deepseek')
+        self.assertEqual({r['id'] for r in store.inventory()['rows']},{selected,keep})
+        result=store.apply(store.preview([selected]));self.assertEqual(result['remaining'],1)
+        self.assertFalse(folder.exists())
+        self.assertTrue((root/'sessions'/'--D-work--'/keep/'session.v4.jsonl.zstd').exists())
+        workspace=json.loads((root/'storages/workspace.json').read_text())
+        self.assertEqual(workspace['global']['pinnedSessionIds'],[keep])
+        self.assertEqual(workspace['tables']['workspaces']['ws']['sessionIds'],[keep])
+        self.assertEqual([r['id'] for r in store.inventory()['rows']],[keep])
     def test_deepseek_empty_folder_and_unknown_cache(self):
         root=self.root/'.dsh';folder=root/'sessions/project'/IDS[0];folder.mkdir(parents=True)
         store=self.provider('deepseek');store.apply(store.preview([IDS[0]]))
@@ -196,7 +216,9 @@ class ProviderTests(unittest.TestCase):
         self.assertEqual(self.provider('claude').inventory()['rows'][0]['title'],'实际任务')
     def test_adapter_failure_rolls_back(self):
         p=self.root/'.claude/history.jsonl';put(p,[{'sessionId':IDS[0],'display':'test'}],True)
-        store=self.provider('claude');plan=store.preview([IDS[0]]);original=p.read_bytes()
+        store=self.provider('claude');original=p.read_bytes()
+        outside=tempfile.TemporaryDirectory();self.addCleanup(outside.cleanup)
+        plan=store.preview([IDS[0]],backup={'mode':'custom','directory':outside.name})
         actual=store.snapshot;count=0
         def fail_after_write():
             nonlocal count

@@ -3,7 +3,7 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AI 会话清理器</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/apps.css"><script src="/app.js" defer></script></head>
 <body>
 <div class="shell">
-  <aside class="rail"><div class="brand">AI<span>·</span></div><div class="rail-label">LOCAL<br>TOOLS</div><div class="rail-bottom">1.3.0</div></aside>
+  <aside class="rail"><div class="brand">AI<span>·</span></div><div class="rail-label">LOCAL<br>TOOLS</div><div class="rail-bottom">1.3.1</div></aside>
   <main>
     <header><div><div class="eyebrow">AI CONVERSATION CLEANER / LOCAL</div><h1>把对话列表，收拾干净。</h1><p class="subtitle">七个应用，一个清理工具。选择本地会话，预览后删除。</p></div><button id="quit" class="quiet">退出工具 ↗</button></header>
     <nav id="apps" class="apps" aria-label="选择应用"></nav>
@@ -13,9 +13,9 @@
     <div id="error" class="notice error" role="alert" hidden></div>
     <div id="success" class="notice success" role="status" hidden></div>
     <section class="backup-settings" aria-label="备份设置">
-      <div class="backup-heading"><label for="backup-mode">删除前备份</label><select id="backup-mode"><option value="default">备份到默认目录</option><option value="custom">手动选择备份目录</option><option value="none">不备份，直接删除</option></select></div>
-      <div id="custom-backup" class="backup-path" hidden><input id="backup-directory" aria-label="自定义备份目录" placeholder="选择文件夹，或输入完整路径"><button id="choose-backup">选择文件夹…</button></div>
-      <p id="backup-note" class="backup-note">备份设置将随删除预览一起确认。</p>
+      <div class="backup-heading"><label for="backup-mode">删除前备份</label><select id="backup-mode"><option value="none" selected>不备份，直接删除</option><option value="custom">备份到指定目录</option></select></div>
+      <div id="custom-backup" class="backup-path" hidden><input id="backup-directory" aria-label="指定备份目录" placeholder="选择文件夹，或输入完整路径"><button id="choose-backup">选择文件夹…</button></div>
+      <p id="backup-note" class="backup-note warning">本次不复制会话或数据库。删除后无法通过本工具恢复；中途失败也无法自动回滚。已有备份不会删除。</p>
     </section>
     <section class="workspace">
       <div class="toolbar"><label class="search"><span>⌕</span><input id="search" placeholder="搜索标题、项目路径或任务 ID" aria-label="搜索任务"></label><select id="filter" aria-label="筛选任务"><option value="all">全部任务</option><option value="normal">未归档任务</option><option value="archived">已归档</option><option value="broken">缺失 / 残留</option></select><button id="refresh">刷新列表</button></div>

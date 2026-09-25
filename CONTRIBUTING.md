@@ -15,7 +15,7 @@ Normal tests use synthetic temporary data and injected process detectors. Add a 
 - `python -m tests.probe_official`: requires Codex CLI. Creates/deletes a synthetic empty session under a temporary home; makes no model request.
 - `python -m tests.probe_node_guard`: requires Node. Starts only an inert test-owned process, verifies detection, then terminates only that process.
 - `python -m tests.browser_demo --url-file .test-artifacts/demo-url.txt`: serves all seven tabs with isolated Codex/OpenCode fixtures. Open the generated local URL to test selection, detail, backup choices and button-only deletion; use Exit tool afterward. The URL contains a temporary token; do not publish it or screenshots with local paths.
-- `python -m tests.verify_local_copies --backup-mode default` (also `custom` / `none`): reads real local stores, copies recognized data to temporary directories and deletes only those copies. Reports can contain private usage counts and stay under ignored `.local-reports/`. This is an explicit opt-in check; do not run against someone else's profile without authorization.
+- `python -m tests.verify_local_copies --backup-mode none` (also `custom`): reads real local stores, copies recognized data to temporary directories and deletes only those copies. Reports can contain private usage counts and stay under ignored `.local-reports/`. This is an explicit opt-in check; do not run against someone else's profile without authorization.
 
 Never commit real dumps, personal-task screenshots, inventory output or local validation reports.
 

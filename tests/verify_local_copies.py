@@ -14,7 +14,7 @@ from cleaner.providers import LocalProvider
 
 def main():
     parser=argparse.ArgumentParser()
-    parser.add_argument('--backup-mode',choices=['default','custom','none'],default='default')
+    parser.add_argument('--backup-mode',choices=['none','custom'],default='none')
     args=parser.parse_args()
     results=[]
     for app in ['claude','grok','cursor','antigravity','deepseek']:
@@ -39,7 +39,7 @@ def main():
                 assert source.is_file()
             results.append({'app':app,'backup_mode':args.backup_mode,'status':'passed on isolated copy','deleted':report['deleted'],'remaining':report['remaining']})
     print(json.dumps(results,ensure_ascii=False,indent=2))
-    suffix='' if args.backup_mode=='default' else '-'+args.backup_mode
+    suffix='' if args.backup_mode=='none' else '-'+args.backup_mode
     output=Path(__file__).resolve().parent.parent/'.local-reports'/('storage-copy-verification'+suffix+'.json')
     output.parent.mkdir(exist_ok=True)
     output.write_text(json.dumps(results,ensure_ascii=False,indent=2),encoding='utf-8')

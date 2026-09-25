@@ -20,6 +20,8 @@ from .backups import normalize_backup, check_pending, Operation
 from .store import CleanupError, Store, UUID, atomic_json, canonical_path, connect, digest, file_stamp, quote, tables
 
 LABELS = {"codex":"Codex", "claude":"Claude Code", "grok":"Grok Build", "cursor":"Cursor", "antigravity":"Antigravity", "deepseek":"DeepSeek Harness", "opencode":"OpenCode"}
+# Per-record projection documents. Domain v7 still reads v3–v6 records.
+DSH_PROJECTION_VERSIONS = {3, 4, 5, 6, 7}
 PROCESSES = {"claude":{"claude.exe", "claude-code.exe"}, "grok":{"grok.exe", "grok-build.exe"},
              "cursor":{"cursor.exe", "cursor-agent.exe"},
              "antigravity":{"antigravity.exe", "agy.exe", "language_server_windows_x64.exe"},
@@ -117,7 +119,11 @@ class LocalProvider:
     def assert_offline(self):
         running = self.process_provider()
         if running:
-            raise CleanupError(f"请先退出 {self.label}，再执行删除。检测到：" + ", ".join(f"{p['name']} (PID {p['pid']})" for p in running[:8]))
+            detail = ", ".join(f"{p['name']} (PID {p['pid']})" for p in running[:8])
+            hint = ""
+            if self.app == "deepseek":
+                hint = " DSH Desktop 关闭窗口后仍留在后台，后台进程会把已删会话写回磁盘。请从托盘退出，或在任务管理器中结束全部 DSH Desktop.exe 后再删除。"
+            raise CleanupError(f"请先退出 {self.label}，再执行删除。检测到：{detail}。{hint}")
 
     def base_row(self, target, title="", cwd="", updated=0, archived=False):
         return {"id":target,"title":title or "未命名会话 · "+target[:8],"cwd":cwd,"updated":updated,
@@ -263,7 +269,7 @@ class LocalProvider:
             for p in (root/'storages/session_projcache/sessions').glob('*.json'):
                 if not self.valid_id(p.stem):continue
                 info=read_json(p)
-                if info.get('version') not in {5,7} or not isinstance(info.get('record'),dict):
+                if info.get('version') not in DSH_PROJECTION_VERSIONS or not isinstance(info.get('record'),dict):
                     raise CleanupError('DeepSeek Harness 会话摘要格式不受支持：'+str(p))
                 projection(p.stem,info['record']);file(p.stem,p)
             for folder in (root/'sessions').glob('*/*'):
@@ -279,7 +285,7 @@ class LocalProvider:
                 for entry in info['tables']['workspaces'].values():
                     for target in entry.get('sessionIds',[]):row(target,cwd=entry.get('path'))
                 for target in info.get('global',{}).get('archivedSessionIds',[]):row(target,archived=True)
-            notes.append('DeepSeek Harness 显示本地索引标题与首条提示摘要；压缩日志整体删除，不解压正文。历史备份与 .deleted-sessions 保留。')
+            notes.append('DeepSeek Harness 显示本地索引标题与首条提示摘要。会话目录整体删除，含 v3/v4 压缩日志，不解压正文。置顶记录一并清除。历史备份与 .deleted-sessions 保留。')
         else:
             root,ide,user=self.roots
             summary=root/"conversation_summaries.db"
@@ -417,6 +423,8 @@ class LocalProvider:
                     elif kind=='dsh-workspace':
                         info=read_json(p)
                         info['global']['archivedSessionIds']=[i for i in info['global'].get('archivedSessionIds',[]) if i not in ids]
+                        if isinstance(info['global'].get('pinnedSessionIds'), list):
+                            info['global']['pinnedSessionIds']=[i for i in info['global']['pinnedSessionIds'] if i not in ids]
                         for entry in info['tables']['workspaces'].values():entry['sessionIds']=[i for i in entry.get('sessionIds',[]) if i not in ids]
                         atomic_json(p,info)
                     else:
@@ -427,6 +435,13 @@ class LocalProvider:
                             if item.get(key) not in ids:kept.append(line)
                         tmp=p.with_suffix(p.suffix+'.cleaner.tmp');tmp.write_text(''.join(kept),encoding='utf-8');tmp.replace(p)
                 for p in sorted({p for i in ids for p in before['files'].get(i,set())}):self.safe(p).unlink()
+                # DSH 2.x reimports any remaining session directory on startup, including a
+                # historical generation (session.v3 next to session.v4) or a nested artifact.
+                if self.app == 'deepseek':
+                    for i in ids:
+                        for folder in (self.roots[0]/'sessions').glob('*/'+i):
+                            if folder.is_dir() and folder.name == i:
+                                shutil.rmtree(self.safe(folder))
                 # Remove only now-empty, selected session directories. No project roots.
                 for i in ids:
                     folders={p.parent for p in before['files'].get(i,set())}

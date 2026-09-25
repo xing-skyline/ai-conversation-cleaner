@@ -9,12 +9,11 @@ from pathlib import Path
 
 def normalize_backup(store, choice=None):
     from .store import CleanupError
-    if choice is None:choice={'mode':'default'}
-    if not isinstance(choice,dict) or choice.get('mode') not in {'default','custom','none'}:
+    if choice is None:choice={'mode':'none'}
+    if not isinstance(choice,dict) or choice.get('mode') not in {'custom','none'}:
         raise CleanupError('备份方式无效，请重新选择。')
     mode=choice['mode']
     if mode=='none':return {'mode':'none','directory':None}
-    if mode=='default':return {'mode':'default','directory':str(store.backup_root)}
     directory=choice.get('directory')
     if not isinstance(directory,str) or not directory.strip() or not Path(directory.strip()).is_absolute():
         raise CleanupError('请选择或输入备份文件夹的绝对路径。')
@@ -30,9 +29,7 @@ def normalize_backup(store, choice=None):
 def backup_destination(store, choice=None):
     choice=normalize_backup(store,choice)
     if choice['mode']=='none':return None
-    root=Path(choice['directory'])
-    if choice['mode']=='custom':root=root/'AIConversationCleaner'/getattr(store,'app','codex')
-    return root
+    return Path(choice['directory'])/'AIConversationCleaner'/getattr(store,'app','codex')
 
 
 def check_pending(store):

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.1 — optional backup and DeepSeek Harness 2.x
+
+- Default to no backup. The only other choice is a folder selected for that deletion; the built-in backup location is no longer offered.
+- Remove a DeepSeek Harness 2.x session directory as a whole, including `session.v4.jsonl.zstd`, the leftover v3 file, nested artifacts and pinned workspace entries. Accept per-session projection cache versions 3–7.
+- Explain that closing the DSH Desktop window can leave the process running, and that a running process can write the session back.
+
 ## 1.3.0 — macOS support
 
 - Use native macOS storage and backup directories while keeping all seven adapters and backup policies.

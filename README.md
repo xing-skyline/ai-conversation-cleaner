@@ -2,11 +2,11 @@
 
 English · [简体中文](README.zh-CN.md)
 
-A Windows and macOS utility for reviewing and deleting **local conversations** from Codex, Claude Code, Grok Build, Cursor, Google Antigravity, DeepSeek Harness, and OpenCode. Search, inspect, select, preview, then delete—with a default backup, a backup folder you choose, or no backup.
+A Windows and macOS utility for reviewing and deleting **local conversations** from Codex, Claude Code, Grok Build, Cursor, Google Antigravity, DeepSeek Harness, and OpenCode. Search, inspect, select, preview, then delete. Deletion does not back up unless you choose a folder.
 
 **Public preview · Windows x64 / macOS Apple Silicon and Intel · Simplified Chinese interface.** An independent community project, not affiliated with the supported applications' vendors.
 
-> Deletion changes application data directly. Keep the target application and its CLI/background processes closed. Try the isolated demo first and keep backups enabled until you have verified compatibility with your installed versions.
+> Deletion changes application data directly. Keep the target application and its CLI/background processes closed. Try the isolated demo first. Choose “备份到指定目录” until you have verified compatibility with your installed versions.
 
 ## Download and run
 
@@ -26,15 +26,14 @@ The Windows executable is **unsigned**. macOS bundles use ad-hoc signing, withou
 
    | Option | Behavior |
    | --- | --- |
-   | 备份到默认目录 | Back up first, using the default location. |
-   | 手动选择备份目录 | Open the native folder picker or enter an absolute path. Backups go under `selected-folder/AIConversationCleaner/app/timestamp`. |
-   | 不备份，直接删除 | No conversation/database backup. Committed changes cannot be automatically restored after an error. |
+   | 不备份，直接删除 | Default. No conversation or database copy. Committed changes cannot be automatically restored after an error. |
+   | 备份到指定目录 | Open the native folder picker or enter an absolute path. Backups go under `selected-folder/AIConversationCleaner/app/timestamp`. |
 
 4. Exit the target application, its CLI and background processes.
 5. Click **删除所选任务**, review titles/IDs and the backup policy, then click **备份并删除** or **直接删除（不备份）**. No typed confirmation is required.
 6. Check the result, then reopen the original application.
 
-Each fresh launch defaults to backup; no-backup is never remembered automatically. A preview binds the IDs and backup policy to a short-lived, single-use token. Changed data requires a fresh preview. Each batch supports up to 500 conversations.
+Each fresh launch defaults to no backup and does not remember the previous choice. A preview binds the IDs and backup policy to a short-lived, single-use token. Changed data requires a fresh preview. Each batch supports up to 500 conversations.
 
 ## Supported storage
 
@@ -56,21 +55,23 @@ OpenCode's SQLite adapter was checked against the v1.18.31 schema. Older recogni
 
 Codex catalog auxiliaries were checked against desktop 26.915.4065.0. `inbox_items` and `automation_runs` have no host field and match selected thread IDs; a matching ID also present in a non-local catalog host stops deletion because ownership is ambiguous. `live_visualization_suggestions` is restricted to the local host and selected threads. Unknown related tables still block deletion and are now reported during preview.
 
-These internal upstream formats can change; **compatibility with every version is not guaranteed**. DeepSeek cache versions 5/7, shared projection version 3 and workspace version 2 are recognized. Several unexpected structures stop processing, but not every upstream change can be detected. Known executable and Node/Bun paths are checked; custom launchers/plugins may escape detection, so closing the target application yourself remains mandatory.
+These internal upstream formats can change; **compatibility with every version is not guaranteed**. DeepSeek per-session projection cache versions 3–7, shared projection version 3 and workspace version 2 are recognized. Deletion removes the whole session directory, including v3/v4 compressed logs, nested files and pinned entries. Several unexpected structures stop processing, but not every upstream change can be detected. Known executable and Node/Bun paths are checked; custom launchers/plugins may escape detection, so closing the target application yourself remains mandatory. DSH Desktop can keep running after its window closes; quit it from the tray or end every matching process before deleting.
 
 ## Backups, recovery and privacy
 
-Default backup locations:
+Nothing is copied unless you choose “备份到指定目录”. A backed-up batch then includes `result.json`, path mappings, database copies and selected files under `selected-folder/AIConversationCleaner/app/timestamp`.
 
-- Codex: `~/.codex/backups/codex-thread-cleaner` (relative to `CODEX_HOME` when overridden) (legacy name retained for compatibility).
+Operation journals and the operation lock stay in a fixed directory. They record IDs, state and paths, not message bodies (`~` is the current user's home directory):
+
+- Codex: `~/.codex/backups/codex-thread-cleaner` (relative to `CODEX_HOME` when overridden). The legacy directory name is retained for the existing lock.
 - Other apps on Windows: `%LOCALAPPDATA%/AIConversationCleaner/backups/<app>` under the default profile layout.
 - Other apps on macOS: `~/Library/Application Support/AIConversationCleaner/backups/<app>`.
 
 On macOS, Cursor indexes use `~/Library/Application Support/Cursor/User`, and Antigravity indexes use `~/Library/Application Support/Antigravity/User`. Other recognized session files use the same home-relative `.codex`, `.claude`, `.grok`, `.cursor/projects`, `.gemini`, `.dsh` and `.local/share/opencode` layouts. `~` means the current user's home directory.
 
-Backed-up batches include `result.json`, original/backup path mappings, database copies and selected files. SQLite uses its online backup API. Recoverable failures attempt rollback while the target app stays closed. Crashes or concurrent writes may require manual recovery; incomplete operations block further deletion. **Never overwrite a database with an old backup after new conversations have been created.** There is no one-click full-database restore.
+SQLite copies use its online backup API. Recoverable failures attempt rollback while the target app stays closed. Crashes or concurrent writes may require manual recovery; incomplete operations block further deletion. **Never overwrite a database with an old backup after new conversations have been created.** There is no one-click full-database restore.
 
-All modes keep a small `.operations` record of IDs, state and paths—not titles, message bodies or database copies. No-backup failures are reported as `failed_no_backup`, never as a successful rollback. Existing backups are not removed automatically.
+No-backup failures are reported as `failed_no_backup`, never as a successful rollback. Existing backups are not removed automatically.
 
 The cleaner includes no analytics, account login or intentional cloud-conversation API calls. The optional Codex subprocess follows its own configuration. A user-selected network backup destination receives that copy. Backups, journals, screenshots and `--inventory` output may contain private information: **do not upload them to issues or commits**. See [SECURITY.md](SECURITY.md).
 

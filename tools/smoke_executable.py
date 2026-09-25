@@ -41,7 +41,7 @@ def main():
             catalog=Path(inventory['home'])/'sqlite/codex-dev.db'
             add_catalog_auxiliaries(catalog)
             remote=sql(catalog,"SELECT * FROM live_visualization_suggestions WHERE host_id<>'local' ORDER BY host_id,thread_id")
-            for index,mode in enumerate(['none','custom','default']):
+            for index,mode in enumerate(['none','custom','none']):
                 plan=api('preview',{'ids':[inventory['rows'][index]['id']],
                                    'backup':{'mode':mode,'directory':str(root/'chosen-backups')}})
                 result=api('delete',{'plan_token':plan['plan_token']})
@@ -54,7 +54,7 @@ def main():
             assert sql(catalog,"SELECT count(*) FROM live_visualization_suggestions WHERE host_id='local'")==[(0,)]
             assert sql(catalog,"SELECT * FROM live_visualization_suggestions WHERE host_id<>'local' ORDER BY host_id,thread_id")==remote
             assert sql(catalog,'SELECT count(*) FROM automations')==[(1,)]
-            print('Packaged demo smoke test passed: none/custom/default backup modes.')
+            print('Packaged demo smoke test passed: none/custom backup modes.')
             print('Packaged Codex catalog auxiliaries passed; remote suggestions and automation definition preserved.')
         finally:
             if call:

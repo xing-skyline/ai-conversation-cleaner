@@ -30,10 +30,10 @@ function joinPath(root,...parts){const sep=data?.path_separator || '/';return ro
 function backupLocation(choice){return choice.mode==='custom'?joinPath(choice.directory,'AIConversationCleaner',app):choice.directory;}
 function updateBackupUI(){
   const choice=backupChoice(), none=choice.mode==='none';
-  $('custom-backup').hidden=choice.mode!=='custom';$('backup-note').classList.toggle('warning',none);$('backups').disabled=none;
+  $('custom-backup').hidden=choice.mode!=='custom';$('backup-note').classList.toggle('warning',none);
+  $('backups').disabled=none || !choice.directory;
   $('backup-note').textContent=none?'本次不复制会话或数据库。删除后无法通过本工具恢复；中途失败也无法自动回滚。已有备份不会删除。':
-    choice.mode==='custom'?(choice.directory?`备份保存在：${joinPath(backupLocation(choice),'时间戳')}。不会覆盖文件夹内的其他文件。`:'选择文件夹，或直接输入完整路径；不要放入应用的会话数据目录。'):
-    `默认备份目录：${data?.backup_root || '加载中'}。每次删除单独保存一份。`;
+    (choice.directory?`备份保存在：${joinPath(backupLocation(choice),'时间戳')}。不会覆盖文件夹内的其他文件。`:'选择文件夹，或直接输入完整路径；不要放入应用的会话数据目录。');
 }
 function render() {
   if (!data) return;
