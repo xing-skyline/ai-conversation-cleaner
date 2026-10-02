@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — Cursor 3.23 cleanup compatibility
+
+- Include local conversation search rows, FTS entries and reconciliation candidates in Cursor cleanup, backups, rollback and stale-preview detection; preserve cloud-cache entries even when IDs match.
+- Remove owned drafts, root-writer diagnostics, mailbox cursors, file content and partial inline-diff records, plus recognized pinned/selected references. Surface search-only and owned-key-only remnants for cleanup.
+- Match native deletion tombstones for modern composer headers while retaining legacy support; exclude completed deletion markers from the inventory.
+- Validate recognized storage schemas before deletion and check actual keys and index remnants afterward, including full-text rows that lost their metadata mapping.
+- Add synthetic coverage for ownership boundaries, native markers, schema changes, interrupted cleanup and database rollback, plus an app-specific isolated-copy verification option.
+
 ## 1.3.1 — optional backup and DeepSeek Harness 2.x
 
 - Default to no backup. The only other choice is a folder selected for that deletion; the built-in backup location is no longer offered.

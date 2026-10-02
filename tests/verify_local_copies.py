@@ -15,12 +15,15 @@ from cleaner.providers import LocalProvider
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--backup-mode',choices=['none','custom'],default='none')
+    apps=['claude','grok','cursor','antigravity','deepseek']
+    parser.add_argument('--app',choices=apps,help='Verify only this application on isolated copies.')
     args=parser.parse_args()
     results=[]
-    for app in ['claude','grok','cursor','antigravity','deepseek']:
+    for app in [args.app] if args.app else apps:
         live=LocalProvider(app);snapshot=live.snapshot()
         with tempfile.TemporaryDirectory(prefix='ai-cleaner-storage-copy-') as folder:
-            profile=Path(folder)
+            profile=Path(folder).resolve()
+            assert profile.parent==Path(tempfile.gettempdir()).resolve() and profile.name.startswith('ai-cleaner-storage-copy-')
             for source in snapshot['databases']:
                 dest=profile/source.relative_to(live.profile);dest.parent.mkdir(parents=True,exist_ok=True)
                 with contextlib.closing(sqlite3.connect(source.as_uri()+'?mode=ro',uri=True)) as a,contextlib.closing(sqlite3.connect(dest)) as b:a.backup(b)
@@ -40,6 +43,7 @@ def main():
             results.append({'app':app,'backup_mode':args.backup_mode,'status':'passed on isolated copy','deleted':report['deleted'],'remaining':report['remaining']})
     print(json.dumps(results,ensure_ascii=False,indent=2))
     suffix='' if args.backup_mode=='none' else '-'+args.backup_mode
+    if args.app:suffix+='-'+args.app
     output=Path(__file__).resolve().parent.parent/'.local-reports'/('storage-copy-verification'+suffix+'.json')
     output.parent.mkdir(exist_ok=True)
     output.write_text(json.dumps(results,ensure_ascii=False,indent=2),encoding='utf-8')

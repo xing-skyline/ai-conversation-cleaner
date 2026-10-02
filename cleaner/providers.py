@@ -15,6 +15,7 @@ from pathlib import Path
 from urllib.parse import unquote
 
 from .processes import cli_processes, dsh_processes
+from . import cursor
 from .protobuf import summary_map
 from .backups import normalize_backup, check_pending, Operation
 from .store import CleanupError, Store, UUID, atomic_json, canonical_path, connect, digest, file_stamp, quote, tables
@@ -215,20 +216,29 @@ class LocalProvider:
             if active.exists():shared[active]="json"
         elif self.app == "cursor":
             root,projects=self.roots
-            paths=[root/"globalStorage/state.vscdb",*list((root/"workspaceStorage").glob("*/state.vscdb"))]
+            paths=[root/"globalStorage/conversation-search.db",root/"globalStorage/state.vscdb",
+                   *list((root/"workspaceStorage").glob("*/state.vscdb"))]
             for p in paths:
                 if not p.is_file():continue
                 dbs.add(self.safe(p))
                 with contextlib.closing(connect(p)) as con:
+                    if p.name == 'conversation-search.db':
+                        for target,title,updated,archived in cursor.search_rows(con):
+                            row(target,title=title,updated=timestamp(updated),archived=archived)
+                        continue
+                    cursor.validate_state(con)
                     names=tables(con)
-                    if "composerHeaders" in names:
-                        for item in con.execute("SELECT composerId,value FROM composerHeaders"):
-                            info=json.loads(item[1]);row(item[0],title=info.get("name"),cwd=info.get("workspaceIdentifier",{}).get("id"),updated=timestamp(info.get("lastUpdatedAt") or info.get("createdAt")),archived=info.get("isArchived",False))
+                    for target,info in cursor.state_headers(con):
+                        row(target,title=info.get("name"),cwd=(info.get("workspaceIdentifier") or {}).get("id"),updated=timestamp(info.get("lastUpdatedAt") or info.get("createdAt")),archived=info.get("isArchived",False))
+                    for target in cursor.state_remnants(con):
+                        row(target)
                     if "cursorDiskKV" in names:
                         for key,value in con.execute("SELECT key,value FROM cursorDiskKV WHERE key LIKE 'composerData:%'"):
                             target=key.split(":",1)[1]
                             if row(target) is None:continue
-                            info=json.loads(value);row(target,title=info.get("name"),updated=timestamp(info.get("lastUpdatedAt") or info.get("createdAt")),archived=info.get("isArchived",False))
+                            info=cursor.object_json(value,'会话正文')
+                            if info.get('composerId',target)!=target:raise CleanupError('Cursor 会话正文 ID 与键不一致。')
+                            row(target,title=info.get("name"),updated=timestamp(info.get("lastUpdatedAt") or info.get("createdAt")),archived=info.get("isArchived",False))
                             msgs=[]
                             for h in info.get("fullConversationHeadersOnly",[]):
                                 if h.get("grouping",{}).get("textPreview"):
@@ -246,7 +256,7 @@ class LocalProvider:
                 target=next((part for part in reversed(p.relative_to(projects).parts) if UUID.fullmatch(part)),None)
                 target=target or (p.stem if UUID.fullmatch(p.stem) else None)
                 if target:file(target,p)
-            notes.append("Cursor 共享内容缓存和工作区文件保留；删除任务条目、独立消息与会话转录。")
+            notes.append("Cursor 删除本地会话、草稿、独立消息、会话转录及搜索索引；保留云端缓存、共享内容和工作区文件。新版会话头保留原生删除标记。")
         elif self.app == "deepseek":
             root=self.roots[0]
             def projection(target, info):
@@ -357,6 +367,7 @@ class LocalProvider:
 
     def mutate_db(self,path,ids):
         marks=','.join('?' for _ in ids)
+        cursor_fts_rows=[]
         with contextlib.closing(connect(path,readonly=False)) as con:
             con.execute('BEGIN IMMEDIATE')
             try:
@@ -367,14 +378,8 @@ class LocalProvider:
                     if 'session_docs_fts' in names:
                         con.execute("INSERT INTO session_docs_fts(session_docs_fts) VALUES('rebuild')")
                 elif self.app=='cursor':
-                    if 'composerHeaders' in names:con.execute(f'DELETE FROM composerHeaders WHERE composerId IN ({marks})',ids)
-                    if 'cursorDiskKV' in names:
-                        for target in ids:
-                            con.execute("DELETE FROM cursorDiskKV WHERE key=? OR key LIKE ? OR key LIKE ? OR key LIKE ?",('composerData:'+target,'bubbleId:'+target+':%','checkpointId:'+target+':%','inlineDiff:'+target+':%'))
-                            con.execute('DELETE FROM cursorDiskKV WHERE key=?',('composerVirtualRowHeights:'+target,))
-                    if 'ItemTable' in names:
-                        for key,value in list(con.execute("SELECT key,value FROM ItemTable WHERE key IN ('composer.composerData','workbench.backgroundComposer.workspacePersistentData','workbench.backgroundComposer.persistentData')")):
-                            con.execute('UPDATE ItemTable SET value=? WHERE key=?',(json.dumps(prune_json(json.loads(value),set(ids)),ensure_ascii=False),key))
+                    if path.name=='conversation-search.db':cursor_fts_rows=cursor.delete_search(con,ids)
+                    else:cursor.delete_state(con,ids,prune_json)
                 elif self.app=='antigravity':
                     if 'conversation_summaries' in names:con.execute(f'DELETE FROM conversation_summaries WHERE conversation_id IN ({marks})',ids)
                     if 'ItemTable' in names:
@@ -385,6 +390,7 @@ class LocalProvider:
                 con.commit()
             except Exception:
                 con.rollback();raise
+        return cursor_fts_rows
 
     def apply(self,plan):
         with self.lock,self.exclusive():
@@ -413,7 +419,8 @@ class LocalProvider:
             if self.snapshot()['fingerprint']!=plan['fingerprint']:raise CleanupError('准备过程中数据已变化，请重新预览。')
             report['status']='executing';operation.save(report)
             try:
-                for p in sorted(before['databases']):self.mutate_db(p,sorted(ids))
+                cursor_checks={}
+                for p in sorted(before['databases']):cursor_checks[p]=self.mutate_db(p,sorted(ids))
                 for p,kind in before['shared'].items():
                     if kind=='json':atomic_json(p,prune_json(read_json(p),ids))
                     elif kind=='dsh-cache':
@@ -452,6 +459,11 @@ class LocalProvider:
                             try:self.safe(folder).rmdir()
                             except OSError:break
                             folder=folder.parent
+                if self.app=='cursor':
+                    for p in sorted(before['databases']):
+                        with contextlib.closing(connect(p)) as con:
+                            cursor.verify_deleted(con,ids,prune_json,search=p.name=='conversation-search.db',
+                                                  fts_rowids=cursor_checks[p] or ())
                 after=self.snapshot()
                 if {r['id'] for r in after['rows']}!=expected:raise CleanupError('删除后会话集合与计划不一致。')
                 report.update(status='complete',deleted=len(ids),remaining=len(expected),chatgpt_before=0,chatgpt_after=0,integrity={p.name:'ok' for p in before['databases']})

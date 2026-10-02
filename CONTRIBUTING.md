@@ -17,6 +17,8 @@ Normal tests use synthetic temporary data and injected process detectors. Add a 
 - `python -m tests.browser_demo --url-file .test-artifacts/demo-url.txt`: serves all seven tabs with isolated Codex/OpenCode fixtures. Open the generated local URL to test selection, detail, backup choices and button-only deletion; use Exit tool afterward. The URL contains a temporary token; do not publish it or screenshots with local paths.
 - `python -m tests.verify_local_copies --backup-mode none` (also `custom`): reads real local stores, copies recognized data to temporary directories and deletes only those copies. Reports can contain private usage counts and stay under ignored `.local-reports/`. This is an explicit opt-in check; do not run against someone else's profile without authorization.
 
+For a Cursor-only compatibility check, use `python -m tests.verify_local_copies --app cursor --backup-mode none` (also `custom`). This includes the recognized search database; the adapter checks owned key, index and full-text remnants before reporting success.
+
 Never commit real dumps, personal-task screenshots, inventory output or local validation reports.
 
 ## Build
