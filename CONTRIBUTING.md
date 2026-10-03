@@ -19,6 +19,8 @@ Normal tests use synthetic temporary data and injected process detectors. Add a 
 
 For a Cursor-only compatibility check, use `python -m tests.verify_local_copies --app cursor --backup-mode none` (also `custom`). This includes the recognized search database; the adapter checks owned key, index and full-text remnants before reporting success.
 
+For Antigravity, use `python -m tests.verify_local_copies --app antigravity --backup-mode none` (also `custom`). This includes raw hub summaries and consistent copies of per-conversation SQLite databases with committed WAL data; deletion checks the physical body and summary remnants independently of the inventory.
+
 Never commit real dumps, personal-task screenshots, inventory output or local validation reports.
 
 ## Build

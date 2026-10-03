@@ -43,7 +43,7 @@ Windows EXE **没有数字签名**；macOS 构建只有本地临时签名（ad-h
 | Claude Code | `.claude/projects` 转录、所属附属文件和子目录、会话索引、对应 history 条目及已识别辅助文件。 |
 | Grok Build | `.grok/sessions` 会话目录、提示历史、活动索引、搜索数据库和 FTS 索引。 |
 | Cursor | 已适配 composer、草稿、独立消息/检查点/差异/文件内容键、工作区引用、独立转录及本地全文搜索索引；保留原生删除标记、云端搜索缓存和跨会话共享内容。 |
-| Antigravity | 已适配 conversation、annotation、brain、recording 文件、本地摘要库和 IDE 索引；不解码二进制正文。 |
+| Antigravity | 旧版 `.pb`、2.x 独立 `.db` 正文及其 WAL/SHM、annotation、brain、recording 文件、本地摘要库、`agyhub_summaries_proto.pb` 和 IDE 索引；不解码二进制正文。已核验 Windows 2.19.1 的存储结构。 |
 | DeepSeek Harness | `.dsh/sessions`（含压缩日志）、摘要缓存、工作区归属和归档引用；显示缓存标题和首条提示摘要，不展开完整压缩正文。 |
 | OpenCode | `opencode.db` 的会话、消息/正文、待办、分享元数据、输入/上下文投影及对应事件记录；已识别的旧版 JSON 和会话差异文件。保留项目、账号、凭据、共享工具输出及云端分享。删除父会话需明确勾选子会话。 |
 
@@ -69,7 +69,7 @@ Cursor 适配已核对 3.23.12 的 `state.vscdb` 和 `conversation-search.db`。
 - Windows 其他应用：默认用户布局下的 `%LOCALAPPDATA%/AIConversationCleaner/backups/应用名`。
 - macOS 其他应用：`~/Library/Application Support/AIConversationCleaner/backups/应用名`。
 
-macOS 中，Cursor 索引位于 `~/Library/Application Support/Cursor/User`，Antigravity 索引位于 `~/Library/Application Support/Antigravity/User`；其他会话文件继续使用 `~/.codex`、`~/.claude`、`~/.grok`、`~/.cursor/projects`、`~/.gemini`、`~/.dsh` 和 `~/.local/share/opencode` 下已适配的结构。
+macOS 中，Cursor 索引位于 `~/Library/Application Support/Cursor/User`，旧版 Antigravity IDE 索引位于 `~/Library/Application Support/Antigravity/User`；Antigravity 正文和 Hub 摘要位于 `~/.gemini/antigravity`、`~/.gemini/antigravity-ide`。其他会话文件继续使用 `~/.codex`、`~/.claude`、`~/.grok`、`~/.cursor/projects`、`~/.dsh` 和 `~/.local/share/opencode` 下已适配的结构。
 
 SQLite 使用在线备份接口。普通异常且原应用保持退出时，会尝试回滚。断电、强制关闭或并发写入仍可能需要人工恢复；未完成操作会阻止后续删除。**产生新会话后，不要直接用旧备份覆盖整库。** 当前没有一键整库恢复按钮。
 

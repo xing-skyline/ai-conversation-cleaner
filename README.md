@@ -43,7 +43,7 @@ Each fresh launch defaults to no backup and does not remember the previous choic
 | Claude Code | `.claude/projects` transcripts and owned sidecars/subdirectories, session indexes, matching history entries and recognized session auxiliaries. |
 | Grok Build | `.grok/sessions` directories, prompt history, active-session entries and search/FTS indexes. |
 | Cursor | Recognized composer data/drafts, owned message/checkpoint/diff/file-content keys, workspace references, independent transcripts and local full-text search records. Native deletion markers, cloud search caches and shared content-addressed blobs are preserved. |
-| Antigravity | Recognized conversation, annotation, brain and recording files; local summary database and IDE summary index. Binary bodies are not decoded. |
+| Antigravity | Legacy `.pb` and 2.x per-conversation `.db` bodies (including WAL/SHM), annotation, brain and recording files; local summary database, `agyhub_summaries_proto.pb` and IDE summary index. Binary bodies are not decoded. Checked against Windows 2.19.1 storage. |
 | DeepSeek Harness | `.dsh/sessions` including compressed logs, projection caches and workspace/archive membership. Displays cached titles and first-prompt summaries, not the full compressed transcript. |
 | OpenCode | `opencode.db` sessions, messages/parts, todos, share metadata, input/context projections and exact-session event records; recognized legacy JSON and session diffs. Preserves projects, accounts, credentials, shared tool outputs and remote shares. Parent sessions require explicitly selecting their child sessions. |
 
@@ -69,7 +69,7 @@ Operation journals and the operation lock stay in a fixed directory. They record
 - Other apps on Windows: `%LOCALAPPDATA%/AIConversationCleaner/backups/<app>` under the default profile layout.
 - Other apps on macOS: `~/Library/Application Support/AIConversationCleaner/backups/<app>`.
 
-On macOS, Cursor indexes use `~/Library/Application Support/Cursor/User`, and Antigravity indexes use `~/Library/Application Support/Antigravity/User`. Other recognized session files use the same home-relative `.codex`, `.claude`, `.grok`, `.cursor/projects`, `.gemini`, `.dsh` and `.local/share/opencode` layouts. `~` means the current user's home directory.
+On macOS, Cursor indexes use `~/Library/Application Support/Cursor/User`, and legacy Antigravity IDE indexes use `~/Library/Application Support/Antigravity/User`. Antigravity conversation bodies and hub summaries use `~/.gemini/antigravity` and `~/.gemini/antigravity-ide`. Other recognized session files use the same home-relative `.codex`, `.claude`, `.grok`, `.cursor/projects`, `.dsh` and `.local/share/opencode` layouts. `~` means the current user's home directory.
 
 SQLite copies use its online backup API. Recoverable failures attempt rollback while the target app stays closed. Crashes or concurrent writes may require manual recovery; incomplete operations block further deletion. **Never overwrite a database with an old backup after new conversations have been created.** There is no one-click full-database restore.
 

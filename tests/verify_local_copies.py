@@ -24,11 +24,13 @@ def main():
         with tempfile.TemporaryDirectory(prefix='ai-cleaner-storage-copy-') as folder:
             profile=Path(folder).resolve()
             assert profile.parent==Path(tempfile.gettempdir()).resolve() and profile.name.startswith('ai-cleaner-storage-copy-')
-            for source in snapshot['databases']:
+            databases=snapshot['databases'] | snapshot['session_databases']
+            sidecars={Path(str(p)+suffix) for p in snapshot['session_databases'] for suffix in ('-wal','-shm')}
+            for source in databases:
                 dest=profile/source.relative_to(live.profile);dest.parent.mkdir(parents=True,exist_ok=True)
                 with contextlib.closing(sqlite3.connect(source.as_uri()+'?mode=ro',uri=True)) as a,contextlib.closing(sqlite3.connect(dest)) as b:a.backup(b)
             files=set(snapshot['shared'])|{p for group in snapshot['files'].values() for p in group}
-            for source in files:
+            for source in files-databases-sidecars:
                 dest=profile/source.relative_to(live.profile);dest.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(source,dest)
             store=LocalProvider(app,profile,process_provider=lambda:[])
             before=store.inventory()
@@ -38,8 +40,10 @@ def main():
             policy={'mode':args.backup_mode,'directory':str(profile/'custom-backups')}
             report=store.apply(store.preview([r['id'] for r in before['rows']],backup=policy))
             assert report['remaining']==0
-            for source in snapshot['databases']:
+            for source in databases:
                 assert source.is_file()
+            for source in snapshot['session_databases']:
+                assert not (profile/source.relative_to(live.profile)).exists()
             results.append({'app':app,'backup_mode':args.backup_mode,'status':'passed on isolated copy','deleted':report['deleted'],'remaining':report['remaining']})
     print(json.dumps(results,ensure_ascii=False,indent=2))
     suffix='' if args.backup_mode=='none' else '-'+args.backup_mode

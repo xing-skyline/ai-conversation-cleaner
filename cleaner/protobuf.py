@@ -45,6 +45,12 @@ def summary_map(encoded, delete_ids=frozenset()):
         raw = base64.b64decode(encoded, validate=True)
     except ValueError as error:
         raise CleanupError("Antigravity 摘要索引不是受支持的 Base64 数据。") from error
+    rows, edited = summary_map_bytes(raw, delete_ids, legacy=True)
+    return rows, base64.b64encode(edited).decode("ascii")
+
+
+def summary_map_bytes(raw, delete_ids=frozenset(), *, legacy=False):
+    """Hub files store raw map entries and plain titles; IDE indexes wrap Base64."""
     rows, kept = {}, []
     for n, w, v, original in fields(raw):
         target = None
@@ -59,14 +65,16 @@ def summary_map(encoded, delete_ids=frozenset()):
                     pass
         if target:
             title = ""
-            # Current local format: map value -> field 1 base64 -> field 1 title.
             try:
                 value = next(ev for en,ew,ev,_ in entry if en == 2 and ew == 2)
                 nested = next(ev for en,ew,ev,_ in fields(value) if en == 1 and ew == 2)
-                title = next(ev.decode("utf-8") for en,ew,ev,_ in fields(base64.b64decode(nested, validate=True)) if en == 1 and ew == 2)
+                if legacy:
+                    title = next(ev.decode("utf-8") for en,ew,ev,_ in fields(base64.b64decode(nested, validate=True)) if en == 1 and ew == 2)
+                else:
+                    title = nested.decode("utf-8")
             except (ValueError, StopIteration, UnicodeError, CleanupError):
                 pass
             rows[target] = title
         if target not in delete_ids:
             kept.append(original)
-    return rows, base64.b64encode(b"".join(kept)).decode("ascii")
+    return rows, b"".join(kept)

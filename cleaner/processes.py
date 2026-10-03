@@ -23,6 +23,34 @@ MAC_NAMES = {'antigravity': {'antigravity ide', 'language_server_macos_arm',
                             'language_server_macos_arm64', 'language_server_macos_x64'}}
 
 
+def antigravity_server_path(executable):
+    # The 2.x server has a generic name also used by unrelated applications.
+    parts = executable.replace('\\', '/').lower().split('/')
+    return parts[-1] in {'language_server', 'language_server.exe'} and any(
+        part in {'antigravity', 'antigravity-ide', 'antigravity.app', 'antigravity ide.app'}
+        for part in parts[:-1])
+
+
+def antigravity_windows_servers():
+    command = r'''$ErrorActionPreference='Stop'; @(Get-CimInstance Win32_Process -Filter "Name='language_server.exe'" | ForEach-Object { @{pid=$_.ProcessId;name=$_.Name;path=$_.ExecutablePath} }) | ConvertTo-Json -Compress'''
+    try:
+        result = subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', command],
+                                capture_output=True, text=True, timeout=15,
+                                creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        if result.returncode:
+            raise RuntimeError('无法核验 Antigravity 后台进程；本次停止删除。')
+        values = json.loads(result.stdout) if result.stdout.strip() else []
+        found = []
+        for entry in values if isinstance(values, list) else [values]:
+            if not entry.get('path'):
+                raise RuntimeError('无法确认 language_server.exe 进程归属；本次停止删除。')
+            if antigravity_server_path(entry['path']):
+                found.append({'pid': entry['pid'], 'name': entry['name']+' (Antigravity)'})
+        return found
+    except (OSError, subprocess.TimeoutExpired, ValueError) as error:
+        raise RuntimeError('无法核验 Antigravity 后台进程；本次停止删除。') from error
+
+
 def mac_process_table(field):
     try:
         result = subprocess.run(['/bin/ps', '-ww', '-axo', 'pid=,' + field + '='],
@@ -52,6 +80,7 @@ def mac_processes(names, app=None):
         native = any(lower == base or lower == base + ' helper'
                      or lower.startswith(base + ' helper (') or lower.startswith(base + ' (')
                      for base in names)
+        if app == 'antigravity' and antigravity_server_path(executable):native = True
         if native:
             found.append({'pid': pid, 'name': name})
         elif lower in {'node', 'nodejs', 'bun'}:
@@ -110,6 +139,7 @@ def cli_processes(app,names):
     """Check native executables and known Node/Bun package launch paths."""
     if sys.platform == 'darwin':return mac_processes(names, app)
     found=app_processes(names)
+    if app == 'antigravity':found.extend(antigravity_windows_servers())
     if app not in NODE_PATTERNS:return found
     command=r'''$ErrorActionPreference='Stop'; @(Get-CimInstance Win32_Process -Filter "Name='node.exe' OR Name='bun.exe'" | Where-Object { $_.CommandLine -match $env:AI_CLEANER_PROCESS_PATTERN } | ForEach-Object { @{pid=$_.ProcessId;name=$_.Name+' ('+$env:AI_CLEANER_PROCESS_LABEL+')'} }) | ConvertTo-Json -Compress'''
     result=subprocess.run(['powershell.exe','-NoProfile','-NonInteractive','-Command',command],

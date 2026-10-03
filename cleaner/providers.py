@@ -15,8 +15,8 @@ from pathlib import Path
 from urllib.parse import unquote
 
 from .processes import cli_processes, dsh_processes
-from . import cursor
-from .protobuf import summary_map
+from . import antigravity, cursor
+from .protobuf import summary_map, summary_map_bytes
 from .backups import normalize_backup, check_pending, Operation
 from .store import CleanupError, Store, UUID, atomic_json, canonical_path, connect, digest, file_stamp, quote, tables
 
@@ -132,6 +132,7 @@ class LocalProvider:
 
     def snapshot(self):
         rows, files, dbs, shared, messages, notes = {}, {}, set(), {}, {}, []
+        session_dbs = set()
         def row(target, **kwargs):
             if not self.valid_id(target):
                 return None
@@ -298,8 +299,8 @@ class LocalProvider:
             notes.append('DeepSeek Harness 显示本地索引标题与首条提示摘要。会话目录整体删除，含 v3/v4 压缩日志，不解压正文。置顶记录一并清除。历史备份与 .deleted-sessions 保留。')
         else:
             root,ide,user=self.roots
-            summary=root/"conversation_summaries.db"
-            if summary.exists():
+            for summary in (root/"conversation_summaries.db", ide/"conversation_summaries.db"):
+                if not summary.is_file():continue
                 dbs.add(self.safe(summary))
                 with contextlib.closing(connect(summary)) as con:
                     if "conversation_summaries" not in tables(con):raise CleanupError("Antigravity 摘要库结构已变化。")
@@ -315,6 +316,22 @@ class LocalProvider:
                         items,_=summary_map(entry[0])
                         for target,title in items.items():row(target,title=title)
             for base in (root,ide):
+                hub=base/antigravity.HUB_SUMMARIES
+                if hub.is_file():
+                    shared[self.safe(hub)]='antigravity-hub'
+                    for target,title in summary_map_bytes(hub.read_bytes())[0].items():
+                        row(target,title=title)
+                for p in (base/"conversations").glob("*.db"):
+                    if not self.valid_id(p.stem):continue
+                    target=p.stem
+                    p=self.safe(p)
+                    antigravity.validate_conversation(p,target)
+                    session_dbs.add(p)
+                    file(target,p)
+                for suffix in ('-wal','-shm'):
+                    for p in (base/"conversations").glob('*.db'+suffix):
+                        target=p.name[:-len('.db'+suffix)]
+                        if self.valid_id(target):file(target,p)
                 for p in (base/"conversations").glob("*.pb"):
                     if row(p.stem) is None:continue
                     file(p.stem,p);row(p.stem,updated=max(rows[p.stem]["updated"],p.stat().st_mtime))
@@ -328,19 +345,21 @@ class LocalProvider:
                     if brain.exists() and rows[target]["title"].startswith("未命名会话"):
                         first=brain.read_text(encoding="utf-8",errors="replace").splitlines()
                         if first:row(target,title=first[0].lstrip("# ")[:140])
-            notes.append("Antigravity 会话正文为二进制格式；优先显示本地摘要，缺少摘要时显示任务 ID。")
+            notes.append("Antigravity 支持旧版 .pb 和新版独立 .db 会话，清理 Hub 摘要及 IDE 索引；正文不解码，优先显示本地摘要。")
+        shm={Path(str(p)+'-shm') for p in session_dbs}
         for target,r in rows.items():
             ps=files.get(target,set());r["files"]=len(ps);r["bytes"]=sum(p.stat().st_size for p in ps)
-            if not r["updated"] and ps:r["updated"]=max(p.stat().st_mtime for p in ps)
+            if not r["updated"] and ps-shm:r["updated"]=max(p.stat().st_mtime for p in ps-shm)
             r["status"]="已归档" if r["archived"] else ("正常" if ps or self.app=="cursor" else "残留记录")
-        stamps=[file_stamp(p) for p in sorted(set(shared)|{p for ps in files.values() for p in ps})]
+        # SQLite readers update shared-memory locks; only DB/WAL content binds a preview.
+        stamps=[file_stamp(p) for p in sorted((set(shared)|{p for ps in files.values() for p in ps})-shm)]
         db_stamps=[]
         for p in sorted(dbs):
             db_stamps.append(file_stamp(p))
             wal=Path(str(p)+"-wal")
             if wal.exists():db_stamps.append(file_stamp(wal))
         return {"rows":sorted(rows.values(),key=lambda r:r["updated"],reverse=True),"files":files,"shared":shared,
-                "databases":dbs,"messages":messages,"fingerprint":digest([rows,stamps,db_stamps]),"warnings":notes}
+                "databases":dbs,"session_databases":session_dbs,"messages":messages,"fingerprint":digest([rows,stamps,db_stamps]),"warnings":notes}
 
     def inventory(self):
         snap=self.snapshot()
@@ -404,15 +423,21 @@ class LocalProvider:
             operation=Operation(self,plan);run=operation.run
             mapping=[]
             targets=set(before['shared'])|{p for i in ids for p in before['files'].get(i,set())}
-            for n,p in enumerate(sorted(targets|before['databases']) if run is not None else []):
+            session_dbs=before.get('session_databases',set()) & targets
+            database_backups=before['databases'] | session_dbs
+            # Online backups merge committed WAL data. Replaying raw sidecars onto
+            # that snapshot during recovery would corrupt the restored database.
+            sidecars={sidecar for p in session_dbs for sidecar in antigravity.sidecars(p)}
+            for n,p in enumerate(sorted((targets|database_backups)-sidecars) if run is not None else []):
                 p=self.safe(p);dest=run/'data'/f'{n:05d}'/p.name;dest.parent.mkdir(parents=True)
-                if p in before['databases']:
+                if p in database_backups:
                     with contextlib.closing(connect(p)) as a,contextlib.closing(sqlite3.connect(dest)) as b:
                         if a.execute('PRAGMA integrity_check').fetchone()[0]!='ok':raise CleanupError('源数据库检查失败。')
                         a.backup(b)
                         if b.execute('PRAGMA integrity_check').fetchone()[0]!='ok':raise CleanupError('备份数据库检查失败。')
                 else:shutil.copy2(p,dest)
-                mapping.append({'source':str(p),'backup':str(dest),'database':p in before['databases']})
+                mapping.append({'source':str(p),'backup':str(dest),'database':p in database_backups,
+                                'session_database':p in session_dbs})
             report={'status':'prepared','app':self.app,'plan':plan,'backups':mapping,**operation.fields()}
             operation.save(report)
             self.assert_offline()
@@ -423,6 +448,7 @@ class LocalProvider:
                 for p in sorted(before['databases']):cursor_checks[p]=self.mutate_db(p,sorted(ids))
                 for p,kind in before['shared'].items():
                     if kind=='json':atomic_json(p,prune_json(read_json(p),ids))
+                    elif kind=='antigravity-hub':antigravity.prune_hub(p,ids)
                     elif kind=='dsh-cache':
                         info=read_json(p)
                         info['tables']['sessions']={i:v for i,v in info['tables']['sessions'].items() if i not in ids}
@@ -464,6 +490,7 @@ class LocalProvider:
                         with contextlib.closing(connect(p)) as con:
                             cursor.verify_deleted(con,ids,prune_json,search=p.name=='conversation-search.db',
                                                   fts_rowids=cursor_checks[p] or ())
+                if self.app=='antigravity':antigravity.verify_deleted(self.roots,ids)
                 after=self.snapshot()
                 if {r['id'] for r in after['rows']}!=expected:raise CleanupError('删除后会话集合与计划不一致。')
                 report.update(status='complete',deleted=len(ids),remaining=len(expected),chatgpt_before=0,chatgpt_after=0,integrity={p.name:'ok' for p in before['databases']})
@@ -478,7 +505,12 @@ class LocalProvider:
                     for entry in mapping:
                         p=Path(entry['source']);backup=Path(entry['backup']);p.parent.mkdir(parents=True,exist_ok=True)
                         if entry['database']:
-                            with contextlib.closing(connect(backup)) as a,contextlib.closing(connect(p,readonly=False)) as b:a.backup(b)
+                            # Owned conversation DBs are deleted as files, so rollback
+                            # must be able to recreate them from the consistent backup.
+                            destination=sqlite3.connect(self.safe(p)) if entry['session_database'] else connect(p,readonly=False)
+                            with contextlib.closing(connect(backup)) as a,contextlib.closing(destination) as b:
+                                a.backup(b)
+                                if b.execute('PRAGMA integrity_check').fetchone()[0]!='ok':raise CleanupError('恢复数据库检查失败。')
                         else:shutil.copy2(backup,p)
                     report.update(status='rolled_back',error=str(error))
                 except Exception as rollback_error:

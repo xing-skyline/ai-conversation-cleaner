@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased — Cursor 3.23 cleanup compatibility
+## Unreleased — Cursor 3.23 and Antigravity 2.19 cleanup compatibility
+
+- Detect and delete Antigravity 2.x per-conversation SQLite databases, WAL/SHM sidecars and raw hub summary entries, alongside legacy `.pb` bodies and IDE indexes. Check cascade ownership before deleting a database and expose body-only, hub-only and orphan-sidecar remnants.
+- Use consistent SQLite backups for selected conversation databases, including committed WAL content, and recreate deleted databases during rollback without replaying stale sidecars. Include body, WAL and hub changes in preview validation; check physical remnants before reporting success.
+- Detect Antigravity's renamed `language_server.exe` / `language_server` by application path while leaving unrelated language servers alone. Add synthetic deletion, recovery, ownership, stale-preview and process regressions, and verify Windows 2.19.1 storage on isolated local copies.
 
 - Include local conversation search rows, FTS entries and reconciliation candidates in Cursor cleanup, backups, rollback and stale-preview detection; preserve cloud-cache entries even when IDs match.
 - Remove owned drafts, root-writer diagnostics, mailbox cursors, file content and partial inline-diff records, plus recognized pinned/selected references. Surface search-only and owned-key-only remnants for cleanup.
