@@ -1,4 +1,4 @@
-"""Recognized Cursor state and search storage (checked against Cursor 3.23.12).
+"""Recognized Cursor state and search storage (checked against Cursor 3.23.23).
 
 Only UUID-owned local records are removed. Content-addressed blobs, cloud search
 rows and non-session settings are never selected by substring matching.
