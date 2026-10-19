@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Support Codex state tables `thread_read_receipts` and `guardian_review_feedback`, deleting only rows whose `thread_id` belongs to a selected task. Unknown related tables still block deletion.
+- Add synthetic regressions for selected-row cleanup, preservation, empty/absent tables, schema rejection and backup rollback, plus packaged executable checks for both state tables.
+
 ## 1.3.2 — Cursor 3.23 and Antigravity 2.19 cleanup compatibility
 
 - Verify Cursor 3.23.23 inventory and deletion on isolated copies of installed storage, and exercise modern Cursor storage in packaged Windows/macOS smoke tests, including search-only records, native deletion markers and cloud-cache preservation.

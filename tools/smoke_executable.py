@@ -13,6 +13,7 @@ from urllib.parse import urlsplit,parse_qs
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from tests.test_codex_catalog import add_catalog_auxiliaries
+from tests.test_codex_state import STATE_AUXILIARIES, add_state_auxiliaries
 from tests.test_cleaner import sql
 from tests.test_cursor import CursorTests
 from cleaner.demo import IDS
@@ -46,12 +47,21 @@ def main():
             # The executable created this isolated --demo home; never a real profile.
             catalog=Path(inventory['home'])/'sqlite/codex-dev.db'
             add_catalog_auxiliaries(catalog)
+            state=Path(inventory['home'])/'state_5.sqlite'
+            add_state_auxiliaries(state)
+            state_kept={table:sql(state,'SELECT * FROM '+table+' WHERE thread_id<>?',(IDS[0],))
+                        for table in STATE_AUXILIARIES}
             remote=sql(catalog,"SELECT * FROM live_visualization_suggestions WHERE host_id<>'local' ORDER BY host_id,thread_id")
             for index,mode in enumerate(['none','custom','none']):
                 plan=api('preview',{'ids':[inventory['rows'][index]['id']],
                                    'backup':{'mode':mode,'directory':str(root/'chosen-backups')}})
                 result=api('delete',{'plan_token':plan['plan_token']})
                 assert result['remaining']==3-index and result['backup_mode']==mode
+                if index==0:
+                    assert result['rows_removed']['state.thread_read_receipts']==1
+                    assert result['rows_removed']['state.guardian_review_feedback']==2
+                    for table,rows in state_kept.items():
+                        assert sql(state,'SELECT * FROM '+table)==rows
                 if mode=='none':assert result['backup_dir'] is None and result['backups']==[]
                 else:assert Path(result['backup_dir'],'result.json').is_file()
             assert len(api('inventory')['rows'])==1
@@ -60,8 +70,12 @@ def main():
             assert sql(catalog,"SELECT count(*) FROM live_visualization_suggestions WHERE host_id='local'")==[(0,)]
             assert sql(catalog,"SELECT * FROM live_visualization_suggestions WHERE host_id<>'local' ORDER BY host_id,thread_id")==remote
             assert sql(catalog,'SELECT count(*) FROM automations')==[(1,)]
+            for table in STATE_AUXILIARIES:
+                assert sql(state,'SELECT count(*) FROM '+table)==[(0,)]
+            assert sql(state,'PRAGMA foreign_key_check')==[]
             print('Packaged demo smoke test passed: none/custom backup modes.')
             print('Packaged Codex catalog auxiliaries passed; remote suggestions and automation definition preserved.')
+            print('Packaged Codex state auxiliaries passed; exact thread ownership and kept records verified.')
         finally:
             if call:
                 try:call('quit',{})
