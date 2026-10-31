@@ -53,6 +53,8 @@ Windows EXE **没有数字签名**；macOS 构建只有本地临时签名（ad-h
 
 OpenCode SQLite 适配已核对 v1.18.31 表结构，同时处理已识别的旧版 `storage/session`、`storage/message`、`storage/part` 和 `storage/session_diff` JSON 文件。发现未知会话关联表时会停止删除，不会静默跳过。OpenCode 数据库备份是整库副本，可能包含账号与凭据信息，请勿公开或上传。
 
+Codex 支持同一数据目录中 `sqlite/codex.db` 与 `sqlite/codex-dev.db` 并存：本地任务按 ID 合并，重复标题采用来源更新时间较新的记录；ChatGPT 目录按主机与任务 ID 去重。确认删除后，会按每个库各自的本地主机标识清理所选任务，并将两个库一并纳入可选备份、回滚和预览变化检查。其他未知的多目录库组合、多个主状态库版本仍会阻止操作。
+
 Codex 目录关联表已核对桌面版 26.915.4065.0 的结构。`inbox_items` 和 `automation_runs` 没有主机字段，按所选任务 ID 匹配；若同 ID 还出现在非本地主机目录中，会因无法确认归属而停止。`live_visualization_suggestions` 同时限定本地主机与所选任务。未知关联表仍会拦截，并提前在删除预览阶段报告。
 
 Cursor 适配已核对 3.23.23 的 `state.vscdb` 和 `conversation-search.db`。搜索库纳入备份、回滚及预览变化检查，只删除所选本地会话的搜索条目、全文索引和候选记录；同 ID 的云端缓存仍保留。新版会话头按 Cursor 原生格式保留清空标题的删除标记，不在清理器中再次显示为会话。删除后单独检查已识别的会话键与索引残留，未知搜索结构在预览时拦截。

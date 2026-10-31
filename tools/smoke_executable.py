@@ -13,6 +13,7 @@ from urllib.parse import urlsplit,parse_qs
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from tests.test_codex_catalog import add_catalog_auxiliaries
+from tests.test_codex_multi_catalog import copy_database
 from tests.test_codex_state import STATE_AUXILIARIES, add_state_auxiliaries
 from tests.test_cleaner import sql
 from tests.test_cursor import CursorTests
@@ -47,6 +48,11 @@ def main():
             # The executable created this isolated --demo home; never a real profile.
             catalog=Path(inventory['home'])/'sqlite/codex-dev.db'
             add_catalog_auxiliaries(catalog)
+            stable_catalog=catalog.with_name('codex.db')
+            copy_database(catalog,stable_catalog)
+            dual_inventory=api('inventory')
+            assert len(dual_inventory['rows'])==4 and dual_inventory['chatgpt']==1
+            assert {str(catalog),str(stable_catalog)} <= set(dual_inventory['databases'].values())
             state=Path(inventory['home'])/'state_5.sqlite'
             add_state_auxiliaries(state)
             state_kept={table:sql(state,'SELECT * FROM '+table+' WHERE thread_id<>?',(IDS[0],))
@@ -70,6 +76,10 @@ def main():
             assert sql(catalog,"SELECT count(*) FROM live_visualization_suggestions WHERE host_id='local'")==[(0,)]
             assert sql(catalog,"SELECT * FROM live_visualization_suggestions WHERE host_id<>'local' ORDER BY host_id,thread_id")==remote
             assert sql(catalog,'SELECT count(*) FROM automations')==[(1,)]
+            for table in ('local_thread_catalog','thread_timeline_ledger','local_thread_catalog_scan_entries',
+                          'inbox_items','automation_runs','live_visualization_suggestions','automations'):
+                assert sql(stable_catalog,'SELECT * FROM '+table)==sql(catalog,'SELECT * FROM '+table), table
+            print('Packaged coexisting codex.db/codex-dev.db cleanup and deduplication passed.')
             for table in STATE_AUXILIARIES:
                 assert sql(state,'SELECT count(*) FROM '+table)==[(0,)]
             assert sql(state,'PRAGMA foreign_key_check')==[]

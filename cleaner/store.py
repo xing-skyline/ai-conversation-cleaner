@@ -37,6 +37,7 @@ PATTERNS = {"catalog": ["sqlite/*.db", "sqlite/*.sqlite"], "state": ["state_*.sq
             "memories": ["memories_*.sqlite"], "queue": ["queue_*.sqlite"]}
 REQUIRED = {"catalog": "local_thread_catalog", "state": "threads", "history": "thread_items",
             "goals": "thread_goals", "memories": "stage1_outputs", "queue": "queued_items"}
+KNOWN_CATALOG_NAMES = {"codex.db", "codex-dev.db"}
 CATALOG_UNSCOPED = {"inbox_items", "automation_runs"}
 CATALOG_AUXILIARIES = CATALOG_UNSCOPED | {"live_visualization_suggestions"}
 CATALOG_AUX_REQUIRED = {
@@ -125,6 +126,11 @@ def validate_catalog_ownership(con, ids, local_host, alias="main"):
             raise CleanupError(f"catalog.{table} 存在同 ID 跨主机记录，无法确认归属；停止删除。")
 
 
+def database_role(key):
+    """Multiple recognized catalogs share rules but keep separate backup identities."""
+    return key.partition(":")[0]
+
+
 def file_stamp(path):
     s = path.stat()
     return [str(path), s.st_size, s.st_mtime_ns]
@@ -154,6 +160,13 @@ class Store:
                             matches.append(path)
             matches = sorted(set(matches))
             if len(matches) > 1:
+                if role == "catalog" and {p.name for p in matches} == KNOWN_CATALOG_NAMES:
+                    # Both desktop variants can share one CODEX_HOME. Never pick
+                    # just one: selected IDs must be removed from both catalogs.
+                    matches.sort(key=lambda p: p.name != "codex.db")
+                    result[role] = matches[0]
+                    result[f"catalog:{matches[1].name}"] = matches[1]
+                    continue
                 raise CleanupError(f"发现多个 {role} 数据库，停止写入：{matches}")
             if matches:
                 result[role] = matches[0]
@@ -198,36 +211,42 @@ class Store:
 
     def snapshot(self):
         dbs = self.databases()
-        rows, raw_data, cloud, local_host = {}, {}, 0, None
-        for role, path in dbs.items():
+        rows, raw_data, cloud, local_hosts = {}, {}, set(), {}
+        for key, path in dbs.items():
+            role = database_role(key)
             with contextlib.closing(connect(path)) as con:
-                raw_data[role] = {}
+                raw_data[key] = {}
                 schema = list(con.execute("SELECT name,sql FROM sqlite_master WHERE type='table' ORDER BY name"))
-                raw_data[role]["schema"] = [list(r) for r in schema]
+                raw_data[key]["schema"] = [list(r) for r in schema]
                 if role == "catalog":
                     for table in sorted(CATALOG_AUXILIARIES & tables(con)):
                         order = ",".join(quote(c) for c in sorted(columns(con, table)))
-                        raw_data[role][table] = [list(r) for r in con.execute(
+                        raw_data[key][table] = [list(r) for r in con.execute(
                             f"SELECT * FROM {quote(table)} ORDER BY {order}")]
-                    hosts = [dict(r) for r in con.execute("SELECT * FROM local_thread_catalog_hosts")]
+                    hosts = [dict(r) for r in con.execute("SELECT * FROM local_thread_catalog_hosts ORDER BY host_id")]
                     local = [h["host_id"] for h in hosts if h["host_kind"] == "local"]
                     if len(local) != 1:
                         raise CleanupError("目录库中本地主机不是唯一值。")
-                    local_host = local[0]
+                    local_host = local_hosts[key] = local[0]
+                    raw_data[key]["hosts"] = hosts
                     host_kinds = {h["host_id"]: h["host_kind"] for h in hosts}
                     all_rows = [dict(r) for r in con.execute("SELECT * FROM local_thread_catalog ORDER BY host_id,thread_id")]
-                    raw_data[role]["rows"] = all_rows
-                    raw_data[role]["revision"] = list(con.execute("SELECT catalog_revision FROM local_thread_catalog_metadata WHERE id=1"))[0][0]
+                    raw_data[key]["rows"] = all_rows
+                    raw_data[key]["revision"] = list(con.execute("SELECT catalog_revision FROM local_thread_catalog_metadata WHERE id=1"))[0][0]
                     for item in all_rows:
                         if item["host_id"] != local_host:
-                            cloud += int(host_kinds.get(item["host_id"]) == "chatgpt")
+                            if host_kinds.get(item["host_id"]) == "chatgpt":
+                                cloud.add((item["host_id"], item["thread_id"]))
+                            continue
+                        previous = rows.get(item["thread_id"])
+                        if previous and previous["updated"] >= item["source_updated_at"]:
                             continue
                         rows[item["thread_id"]] = {"id": item["thread_id"], "title": item["display_title"],
                                                   "cwd": item.get("cwd") or "", "updated": item["source_updated_at"],
                                                   "catalog": True, "state": False, "archived": False, "preview": ""}
                 if role == "state":
                     state = [dict(r) for r in con.execute("SELECT * FROM threads ORDER BY id")]
-                    raw_data[role]["rows"] = state
+                    raw_data[key]["rows"] = state
                     for item in state:
                         target = item["id"]
                         base = rows.setdefault(target, {"id": target, "catalog": False})
@@ -254,15 +273,15 @@ class Store:
             path = self.home / name
             if path.exists():
                 extra.append(file_stamp(self.inside(path)))
-        fingerprint = digest({"db": raw_data, "files": files, "extra": extra})
+        fingerprint = digest({"db": raw_data, "databases": dbs, "files": files, "extra": extra})
         return {"rows": sorted(rows.values(), key=lambda r: r["updated"], reverse=True),
-                "fingerprint": fingerprint, "chatgpt": cloud, "files": files,
-                "local_host": local_host, "databases": {k: str(v) for k,v in dbs.items()},
+                "fingerprint": fingerprint, "chatgpt": len(cloud), "files": files,
+                "local_hosts": local_hosts, "databases": {k: str(v) for k,v in dbs.items()},
                 "warnings": warnings}
 
     def inventory(self):
         snap = self.snapshot()
-        return {k: v for k,v in snap.items() if k not in {"files", "local_host"}} | {
+        return {k: v for k,v in snap.items() if k not in {"files", "local_hosts"}} | {
             "home": str(self.home), "processes": self.process_provider(), "cli": find_codex(),
             "backup_root": str(self.backup_root)}
 
@@ -278,9 +297,9 @@ class Store:
         if not ids <= by_id.keys():
             raise CleanupError("选中的任务已经变化，请刷新列表。")
         self.validate_rules(snap["databases"])
-        if "catalog" in snap["databases"]:
-            with contextlib.closing(connect(Path(snap["databases"]["catalog"]))) as con:
-                validate_catalog_ownership(con, sorted(ids), snap["local_host"])
+        for key, local_host in snap["local_hosts"].items():
+            with contextlib.closing(connect(Path(snap["databases"][key]))) as con:
+                validate_catalog_ownership(con, sorted(ids), local_host)
         # A kept fork may need its parent's source rollout. Require the user to
         # include dependent forks instead of silently breaking their histories.
         dependent = []
@@ -364,7 +383,8 @@ class Store:
         return mapping
 
     def validate_rules(self, dbs):
-        for role, path in dbs.items():
+        for key, path in dbs.items():
+            role = database_role(key)
             with contextlib.closing(connect(Path(path))) as con:
                 for table in tables(con):
                     cols = columns(con, table)
@@ -384,23 +404,24 @@ class Store:
     def delete_remnants(self, snap, ids):
         dbs = {k: Path(v) for k,v in snap["databases"].items()}
         self.validate_rules(dbs)
-        roles = list(dbs)
-        with contextlib.closing(connect(dbs[roles[0]], readonly=False)) as con:
-            aliases = {roles[0]: "main"}
-            for index, role in enumerate(roles[1:], 1):
+        keys = list(dbs)
+        with contextlib.closing(connect(dbs[keys[0]], readonly=False)) as con:
+            aliases = {keys[0]: "main"}
+            for index, key in enumerate(keys[1:], 1):
                 alias = f"db{index}"
-                con.execute(f"ATTACH DATABASE ? AS {alias}", (str(dbs[role]),))
-                aliases[role] = alias
+                con.execute(f"ATTACH DATABASE ? AS {alias}", (str(dbs[key]),))
+                aliases[key] = alias
             con.execute("BEGIN IMMEDIATE")
             try:
-                catalog_alias = aliases.get("catalog")
-                cloud_before = []
-                if catalog_alias:
-                    validate_catalog_ownership(con, ids, snap["local_host"], catalog_alias)
-                    cloud_before = [list(r) for r in con.execute(f"SELECT * FROM {catalog_alias}.local_thread_catalog WHERE host_id<>? ORDER BY host_id,thread_id", (snap["local_host"],))]
+                cloud_before = {}
+                for key, local_host in snap["local_hosts"].items():
+                    alias = aliases[key]
+                    validate_catalog_ownership(con, ids, local_host, alias)
+                    cloud_before[key] = [list(r) for r in con.execute(f"SELECT * FROM {alias}.local_thread_catalog WHERE host_id<>? ORDER BY host_id,thread_id", (local_host,))]
                 marks = ",".join("?" for _ in ids)
                 counts = {}
-                for role, alias in aliases.items():
+                for key, alias in aliases.items():
+                    role = database_role(key)
                     names = {r[0] for r in con.execute(f"SELECT name FROM {alias}.sqlite_master WHERE type='table'")}
                     for table, cols in RULES[role].items():
                         if table not in names:
@@ -409,16 +430,17 @@ class Store:
                         parameters = list(ids) * len(cols)
                         if role == "catalog" and table not in CATALOG_UNSCOPED:
                             condition = f"host_id=? AND ({condition})"
-                            parameters.insert(0, snap["local_host"])
+                            parameters.insert(0, snap["local_hosts"][key])
                         count = con.execute(f"DELETE FROM {alias}.{quote(table)} WHERE {condition}", parameters).rowcount
-                        counts[f"{role}.{table}"] = count
+                        counts[f"{key}.{table}"] = count
                     if role == "catalog":
                         con.execute(f"UPDATE {alias}.local_thread_catalog_metadata SET catalog_revision=catalog_revision+1 WHERE id=1")
                     if con.execute(f"PRAGMA {alias}.integrity_check").fetchone()[0] != "ok":
-                        raise CleanupError(f"删除事务完整性检查失败：{role}")
-                if catalog_alias:
-                    cloud_after = [list(r) for r in con.execute(f"SELECT * FROM {catalog_alias}.local_thread_catalog WHERE host_id<>? ORDER BY host_id,thread_id", (snap["local_host"],))]
-                    if cloud_before != cloud_after:
+                        raise CleanupError(f"删除事务完整性检查失败：{key}")
+                for key, local_host in snap["local_hosts"].items():
+                    alias = aliases[key]
+                    cloud_after = [list(r) for r in con.execute(f"SELECT * FROM {alias}.local_thread_catalog WHERE host_id<>? ORDER BY host_id,thread_id", (local_host,))]
+                    if cloud_before[key] != cloud_after:
                         raise CleanupError("非本地主机数据发生变化，回滚。")
                 con.commit()
                 return counts

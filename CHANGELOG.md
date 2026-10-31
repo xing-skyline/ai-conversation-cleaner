@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Support coexisting Codex `codex.db` and `codex-dev.db` catalogs: deduplicate inventory, clean selected local references in both catalogs, and include both in preview validation, optional backups and rollback. Preserve unknown-database ambiguity guards and verify the packaged executable with dual-catalog fixtures.
+
 - Support Codex state tables `thread_read_receipts` and `guardian_review_feedback`, deleting only rows whose `thread_id` belongs to a selected task. Unknown related tables still block deletion.
 - Add synthetic regressions for selected-row cleanup, preservation, empty/absent tables, schema rejection and backup rollback, plus packaged executable checks for both state tables.
 
