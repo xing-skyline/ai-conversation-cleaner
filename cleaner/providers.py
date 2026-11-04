@@ -229,6 +229,12 @@ class LocalProvider:
                         continue
                     cursor.validate_state(con)
                     names=tables(con)
+                    for target, info in cursor.state_remote_headers(con):
+                        workspace = info.get('workspace') or {}
+                        paths = workspace.get('paths') or []
+                        place = workspace.get('displayPath') or (paths[0] if paths else '')
+                        cwd = ' · '.join(part for part in (info.get('hostLabel') or '', place) if part) or None
+                        row(target, title=info.get('title'), cwd=cwd, updated=timestamp(info.get('updatedAtMs')))
                     for target,info in cursor.state_headers(con):
                         row(target,title=info.get("name"),cwd=(info.get("workspaceIdentifier") or {}).get("id"),updated=timestamp(info.get("lastUpdatedAt") or info.get("createdAt")),archived=info.get("isArchived",False))
                     for target in cursor.state_remnants(con):
@@ -257,7 +263,7 @@ class LocalProvider:
                 target=next((part for part in reversed(p.relative_to(projects).parts) if UUID.fullmatch(part)),None)
                 target=target or (p.stem if UUID.fullmatch(p.stem) else None)
                 if target:file(target,p)
-            notes.append("Cursor 删除本地会话、草稿、独立消息、会话转录及搜索索引；保留云端缓存、共享内容和工作区文件。新版会话头保留原生删除标记。")
+            notes.append("Cursor 删除本地会话、草稿、独立消息、会话转录及搜索索引；保留云端缓存、共享内容和工作区文件。新版会话头保留原生删除标记。SSH 远端 Agent 的本机会话缓存会一并列出，删除后只清除本机记录，下次连接远端主机时可能重新出现。")
         elif self.app == "deepseek":
             root=self.roots[0]
             def projection(target, info):

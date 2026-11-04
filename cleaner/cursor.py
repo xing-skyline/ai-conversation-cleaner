@@ -1,4 +1,8 @@
-"""Recognized Cursor state and search storage (checked against Cursor 3.23.23).
+"""Recognized Cursor state and search storage.
+
+Composer and search storage were checked against Cursor 3.23.23.
+``remoteAgentHeaders`` was checked against Cursor 3.28.7: a local cache of
+SSH remote-agent sessions, removed by session id without a deletion marker.
 
 Only UUID-owned local records are removed. Content-addressed blobs, cloud search
 rows and non-session settings are never selected by substring matching.
@@ -22,6 +26,9 @@ SCALAR_INDEX_KEYS = ('cursor/glass.selectedAgent', 'cursor/glass.lastRealAgent')
 UI_KEY_PREFIXES = ('glass/cursor.editorPanelVisibility.agent/', 'cursor/glass.editorPanelFullscreen/')
 HEADER_COLUMNS = {'composerId', 'workspaceId', 'createdAt', 'lastUpdatedAt', 'isArchived',
                   'isSubagent', 'recency', 'checkpointAt', 'subagentTypeName', 'value'}
+REMOTE_HEADER_COLUMNS = {'sessionId', 'hostKey', 'updatedAtMs', 'value'}
+REMOTE_HEADER_VERSION = 1
+KNOWN_STATE_TABLES = {'ItemTable', 'cursorDiskKV', 'composerHeaders', 'remoteAgentHeaders'}
 SEARCH_COLUMNS = {
     'conversations': {'fts_rowid', 'source', 'scope', 'id', 'title', 'branches',
                       'updated_at', 'is_archived', 'root_fingerprint', 'cache_fingerprint'},
@@ -64,7 +71,12 @@ def validate_state(con):
             raise CleanupError('Cursor composerHeaders 结构未适配。')
         if fields != {'composerId', 'value'} and not {'workspaceId', 'isArchived', 'lastUpdatedAt'} <= fields:
             raise CleanupError('Cursor composerHeaders 结构未适配。')
-    for table in names - {'ItemTable', 'cursorDiskKV', 'composerHeaders'}:
+    if 'remoteAgentHeaders' in names:
+        if columns(con, 'remoteAgentHeaders') != REMOTE_HEADER_COLUMNS:
+            raise CleanupError('Cursor remoteAgentHeaders 结构未适配。')
+        for _session, _info in state_remote_headers(con):
+            pass
+    for table in names - KNOWN_STATE_TABLES:
         if columns(con, table) & {'composerId', 'conversationId', 'conversation_id', 'sessionId', 'session_id'}:
             raise CleanupError('Cursor 存在未适配的会话关联表：' + table)
     if 'ItemTable' in names:
@@ -95,6 +107,48 @@ def state_headers(con):
             raise CleanupError('Cursor 会话头 ID 与主键不一致。')
         if not is_tombstone(con, target, info):
             yield target, info
+
+
+def _text(value):
+    return isinstance(value, str)
+
+
+def _millis(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def remote_header(session_id, raw):
+    """Version 1 cache row written by Cursor's remote-agent collection."""
+    info = object_json(raw, '远端会话头')
+    if type(info.get('version')) is not int or info.get('version') != REMOTE_HEADER_VERSION:
+        raise CleanupError('Cursor 远端会话头版本未适配。')
+    if not _text(session_id) or not UUID.fullmatch(session_id):
+        raise CleanupError('Cursor 远端会话头 ID 未适配。')
+    if info.get('sessionId') != session_id:
+        raise CleanupError('Cursor 远端会话头 ID 与主键不一致。')
+    for key in ('title', 'hostKey', 'hostLabel', 'remoteAuthority', 'lastKnownStatus'):
+        if key in info and not _text(info[key]):
+            raise CleanupError('Cursor 远端会话头结构未适配。')
+    for key in ('createdAtMs', 'updatedAtMs'):
+        if key in info and not _millis(info[key]):
+            raise CleanupError('Cursor 远端会话头结构未适配。')
+    workspace = info.get('workspace', {})
+    if not isinstance(workspace, dict):
+        raise CleanupError('Cursor 远端会话头结构未适配。')
+    paths = workspace.get('paths', [])
+    if not isinstance(paths, list) or any(not _text(item) for item in paths):
+        raise CleanupError('Cursor 远端会话头结构未适配。')
+    for key in ('displayPath', 'worktreePath'):
+        if key in workspace and not _text(workspace[key]):
+            raise CleanupError('Cursor 远端会话头结构未适配。')
+    return info
+
+
+def state_remote_headers(con):
+    if 'remoteAgentHeaders' not in tables(con):
+        return
+    for session_id, value in con.execute('SELECT sessionId,value FROM remoteAgentHeaders'):
+        yield session_id, remote_header(session_id, value)
 
 
 def state_remnants(con):
@@ -179,6 +233,17 @@ def delete_state(con, ids, prune):
                             + ' WHERE composerId=?', (*values.values(), target))
             else:
                 con.execute('DELETE FROM composerHeaders WHERE composerId=?', (target,))
+    if 'remoteAgentHeaders' in names and ids:
+        ordered = list(ids)
+        marks = ','.join('?' for _ in ordered)
+        removed = con.execute(
+            f'SELECT 1 FROM remoteAgentHeaders WHERE sessionId IN ({marks}) LIMIT 1', ordered).fetchone()
+        # Native collectionDeleteMany removes the row. There is no tombstone;
+        # the version sentinel is what Cursor bumps after a successful write.
+        con.execute(f'DELETE FROM remoteAgentHeaders WHERE sessionId IN ({marks})', ordered)
+        if removed and 'ItemTable' in names:
+            con.execute('INSERT OR REPLACE INTO ItemTable(key,value) VALUES(?,?)',
+                        ('remoteAgentHeaders.version', str(time.time_ns())))
     if 'cursorDiskKV' in names:
         # GLOB is case-sensitive; UUID validation excludes wildcard metacharacters.
         for target in ids:
@@ -225,7 +290,9 @@ def verify_deleted(con, ids, prune, search=False, fts_rowids=()):
                 raise CleanupError('Cursor 删除后仍有全文索引残留。')
         return
     validate_state(con)
-    if any(target in ids for target, _ in state_headers(con)) or ids.intersection(state_remnants(con)):
+    if (any(target in ids for target, _ in state_headers(con))
+            or any(target in ids for target, _ in state_remote_headers(con))
+            or ids.intersection(state_remnants(con))):
         raise CleanupError('Cursor 删除后仍有会话数据残留。')
     if 'ItemTable' in tables(con):
         for key, value in con.execute('SELECT key,value FROM ItemTable'):

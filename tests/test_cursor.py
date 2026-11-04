@@ -17,6 +17,18 @@ SCOPED = ('bubbleId', 'checkpointId', 'inlineDiff', 'ofsContent',
           'codeBlockPartialInlineDiffFates')
 
 
+def remote_value(target, **extra):
+    payload = {
+        'version': 1, 'sessionId': target, 'hostKey': 'host-a', 'hostLabel': 'Host A',
+        'remoteAuthority': 'ssh-remote+host-a', 'title': 'Remote ' + target[:8],
+        'createdAtMs': 1000, 'updatedAtMs': 3000,
+        'workspace': {'paths': ['/work/app'], 'displayPath': '/work/app'},
+        'lastKnownStatus': 'idle',
+    }
+    payload.update(extra)
+    return json.dumps(payload)
+
+
 class CursorTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix='ai-cleaner-cursor-tests-')
@@ -193,6 +205,69 @@ class CursorTests(unittest.TestCase):
         self.assertIn(IDS[0], {r['id'] for r in reopened.inventory()['rows']})
         reopened.apply(reopened.preview([IDS[0]]))
         self.assertNotIn(IDS[0], {r['id'] for r in reopened.inventory()['rows']})
+
+    def test_empty_remote_agent_headers_do_not_block_or_rewrite_sentinel(self):
+        sql(self.db, '''CREATE TABLE remoteAgentHeaders (
+            sessionId TEXT PRIMARY KEY, hostKey TEXT, updatedAtMs INTEGER, value TEXT)''')
+        self.store.apply(self.store.preview([IDS[0]]))
+        self.assertEqual(sql(self.db, 'SELECT count(*) FROM remoteAgentHeaders'), [(0,)])
+        self.assertEqual(sql(self.db, "SELECT key FROM ItemTable WHERE key='remoteAgentHeaders.version'"), [])
+        self.assertNotIn(IDS[0], {r['id'] for r in self.store.inventory()['rows']})
+
+    def test_remote_agent_headers_are_listed_and_only_selected_rows_are_deleted(self):
+        sql(self.db, '''CREATE TABLE remoteAgentHeaders (
+            sessionId TEXT PRIMARY KEY, hostKey TEXT, updatedAtMs INTEGER, value TEXT)''')
+        sql(self.db, 'INSERT INTO remoteAgentHeaders VALUES(?,?,?,?)',
+            (IDS[0], 'host-a', 3000, remote_value(IDS[0], futureFlag=True)))
+        sql(self.db, 'INSERT INTO remoteAgentHeaders VALUES(?,?,?,?)',
+            (IDS[1], 'host-b', 3000, remote_value(IDS[1], title='Keep remote')))
+        sql(self.db, 'INSERT INTO remoteAgentHeaders VALUES(?,?,?,?)',
+            (IDS[4], 'host-a', 3000, remote_value(IDS[4], title='Remote only')))
+        rows = {r['id']: r for r in self.store.inventory()['rows']}
+        self.assertEqual(rows[IDS[0]]['title'], 'Synthetic chat')
+        self.assertEqual(rows[IDS[4]]['title'], 'Remote only')
+        self.assertEqual(rows[IDS[4]]['cwd'], 'Host A · /work/app')
+        kept = sql(self.db, 'SELECT * FROM remoteAgentHeaders WHERE sessionId=?', (IDS[1],))
+        self.store.apply(self.store.preview([IDS[0], IDS[4]]))
+        self.assertEqual(sql(self.db, 'SELECT sessionId FROM remoteAgentHeaders'), [(IDS[1],)])
+        self.assertEqual(sql(self.db, 'SELECT * FROM remoteAgentHeaders WHERE sessionId=?', (IDS[1],)), kept)
+        self.assertTrue(sql(self.db, "SELECT value FROM ItemTable WHERE key='remoteAgentHeaders.version'")[0][0])
+        self.assertEqual({r['id'] for r in self.store.inventory()['rows']}, {IDS[1], IDS[2]})
+
+    def test_remote_agent_header_schema_and_payload_block_before_deletion(self):
+        sql(self.db, '''CREATE TABLE remoteAgentHeaders (
+            sessionId TEXT PRIMARY KEY, hostKey TEXT, updatedAtMs INTEGER, value TEXT)''')
+        cases = (
+            ('version', IDS[4], remote_value(IDS[4], version=2), '版本未适配'),
+            ('identity', 'not-a-uuid', remote_value('not-a-uuid'), 'ID 未适配'),
+            ('mismatch', IDS[4], remote_value(IDS[5]), '主键不一致'),
+            ('json', IDS[4], 'not json', 'JSON'),
+            ('shape', IDS[4], remote_value(IDS[4], workspace={'paths': [1]}), '结构未适配'),
+        )
+        for name, session_id, value, pattern in cases:
+            with self.subTest(name):
+                sql(self.db, 'DELETE FROM remoteAgentHeaders')
+                sql(self.db, 'INSERT INTO remoteAgentHeaders VALUES(?,?,?,?)',
+                    (session_id, 'host-a', 3000, value))
+                with self.assertRaisesRegex(CleanupError, pattern):
+                    self.store.preview([IDS[0]])
+                self.assertEqual(len(sql(self.db, 'SELECT composerId FROM composerHeaders')), 2)
+        sql(self.db, 'DELETE FROM remoteAgentHeaders')
+        sql(self.db, 'ALTER TABLE remoteAgentHeaders ADD COLUMN futureHost TEXT')
+        with self.assertRaisesRegex(CleanupError, 'remoteAgentHeaders 结构未适配'):
+            self.store.preview([IDS[0]])
+        self.assertEqual(len(sql(self.db, 'SELECT composerId FROM composerHeaders')), 2)
+
+    def test_recognized_remote_headers_do_not_skip_other_session_tables(self):
+        sql(self.db, '''CREATE TABLE remoteAgentHeaders (
+            sessionId TEXT PRIMARY KEY, hostKey TEXT, updatedAtMs INTEGER, value TEXT)''')
+        sql(self.db, 'INSERT INTO remoteAgentHeaders VALUES(?,?,?,?)',
+            (IDS[4], 'host-a', 3000, remote_value(IDS[4])))
+        sql(self.db, 'CREATE TABLE futureSessions(sessionId TEXT)')
+        with self.assertRaisesRegex(CleanupError, '未适配的会话关联表：futureSessions'):
+            self.store.preview([IDS[0]])
+        self.assertEqual(len(sql(self.db, 'SELECT composerId FROM composerHeaders')), 2)
+        self.assertEqual(sql(self.db, 'SELECT sessionId FROM remoteAgentHeaders'), [(IDS[4],)])
 
     def test_search_fts_structure_is_checked_before_mutation(self):
         sql(self.search, 'DROP TABLE conversation_fts')
