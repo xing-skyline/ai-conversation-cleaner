@@ -93,13 +93,14 @@ class Handler(BaseHTTPRequestHandler):
 
     def get(self):
         parsed = urlsplit(self.path)
-        if parsed.path in {"/", "/app.js", "/style.css", "/apps.css"}:
+        if parsed.path in {"/", "/app.js", "/style.css", "/apps.css", "/favicon.ico"}:
             if self.headers.get("Host") != urlsplit(self.server.origin).netloc:
                 return self.respond(403, {"error": "Host 校验失败"})
             name, mime = {"/": ("index.html", "text/html; charset=utf-8"),
                           "/app.js": ("app.js", "text/javascript; charset=utf-8"),
                           "/style.css": ("style.css", "text/css; charset=utf-8"),
-                          "/apps.css": ("apps.css", "text/css; charset=utf-8")}[parsed.path]
+                          "/apps.css": ("apps.css", "text/css; charset=utf-8"),
+                          "/favicon.ico": ("app-icon.ico", "image/x-icon")}[parsed.path]
             return self.respond(200, (assets_root() / name).read_bytes(), mime)
         try:
             self.auth()

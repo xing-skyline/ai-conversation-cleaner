@@ -7,6 +7,8 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parent.parent
 DENIED_PARTS={'.test-artifacts','.local-reports','.venv','.protocol','build','dist','release','.release','__pycache__'}
 DENIED_SUFFIXES={'.exe','.zip','.db','.sqlite','.jsonl','.vscdb','.pyc','.pfx','.p12','.pem','.key','.log'}
+# Only these reviewed app icons may be binary; all other files remain text-only.
+BINARY_ASSETS={'web/app-icon.png':b'\x89PNG\r\n\x1a\n','web/app-icon.ico':b'\x00\x00\x01\x00'}
 PATTERNS={
     'possible GitHub token':rb'\bgh[pousr]_[A-Za-z0-9]{20,}\b',
     'possible API secret':rb'\bsk-(?:proj-)?[A-Za-z0-9_-]{24,}\b',
@@ -24,13 +26,16 @@ def main():
             failures.append((name,'private/generated file type'));continue
         content=subprocess.check_output(['git','show',':'+name],cwd=ROOT)
         if len(content)>2_000_000:failures.append((name,'unexpected large source file'));continue
+        if name in BINARY_ASSETS:
+            if not content.startswith(BINARY_ASSETS[name]):failures.append((name,'invalid icon file signature'))
+            continue
         if b'\0' in content:failures.append((name,'unexpected binary file'));continue
         for reason,pattern in PATTERNS.items():
             if re.search(pattern,content):failures.append((name,reason))
     if not count:raise SystemExit('No staged/tracked files: stage the intended public files before scanning.')
     for name,reason in failures:print(f'BLOCKED: {name}: {reason}')
     if failures:raise SystemExit(1)
-    print(f'Public manifest checks passed ({count} text files). Manual privacy review is still required.')
+    print(f'Public manifest checks passed ({count} files). Manual privacy review is still required.')
 
 
 if __name__=='__main__':main()
