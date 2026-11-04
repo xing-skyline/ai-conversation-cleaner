@@ -114,6 +114,8 @@ python -m venv .venv
 .\build.ps1 -Python .\.venv\Scripts\python.exe
 ```
 
+Windows 构建会将 `web/app-icon.ico` 中的自定义图标嵌入单文件 EXE，浏览器标签页也使用同一图标。ICO 包含 16～256 像素的九种尺寸，透明背景原图为 `web/app-icon.png`；复制 EXE 时不需要额外携带这些资源文件。
+
 macOS 构建（在 Mac 上执行，生成当前 Python 架构的 `.app`）：
 
 ```bash
