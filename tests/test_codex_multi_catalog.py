@@ -63,6 +63,7 @@ class CodexMultiCatalogTests(unittest.TestCase):
                 'catalog': sql(path, 'SELECT * FROM local_thread_catalog WHERE NOT(host_id=? AND thread_id=?) ORDER BY host_id,thread_id', (host, IDS[1])),
                 'remote': sql(path, 'SELECT * FROM live_visualization_suggestions WHERE host_id<>? ORDER BY host_id,thread_id', (host,)),
                 'automations': sql(path, 'SELECT * FROM automations'),
+                'active': sql(path, 'SELECT * FROM active_chat_turns WHERE thread_id<>?', (IDS[1],)),
             }
         result = self.store.apply(self.store.preview([IDS[1]], backup={'mode': 'none'}))
         self.assertEqual(result['remaining'], 3)
@@ -72,7 +73,8 @@ class CodexMultiCatalogTests(unittest.TestCase):
             self.assertEqual(sql(path, 'SELECT * FROM local_thread_catalog ORDER BY host_id,thread_id'), before[path]['catalog'])
             self.assertEqual(sql(path, 'SELECT * FROM live_visualization_suggestions WHERE host_id<>? ORDER BY host_id,thread_id', (host,)), before[path]['remote'])
             self.assertEqual(sql(path, 'SELECT * FROM automations'), before[path]['automations'])
-            for table in ('inbox_items', 'automation_runs'):
+            self.assertEqual(sql(path, 'SELECT * FROM active_chat_turns'), before[path]['active'])
+            for table in ('inbox_items', 'automation_runs', 'active_chat_turns'):
                 self.assertEqual(sql(path, 'SELECT count(*) FROM '+table+' WHERE thread_id=?', (IDS[1],)), [(0,)])
             for table in ('thread_timeline_ledger', 'local_thread_catalog_scan_entries', 'live_visualization_suggestions'):
                 self.assertEqual(sql(path, 'SELECT count(*) FROM '+table+' WHERE host_id=? AND thread_id=?', (host, IDS[1])), [(0,)])
@@ -120,6 +122,8 @@ class CodexMultiCatalogTests(unittest.TestCase):
     def test_backup_and_failure_restore_both_catalogs(self):
         before = {path: sql(path, 'SELECT * FROM local_thread_catalog ORDER BY host_id,thread_id')
                   for path in (self.dev, self.stable)}
+        active_before = {path: sql(path, 'SELECT * FROM active_chat_turns')
+                         for path in (self.dev, self.stable)}
         with tempfile.TemporaryDirectory() as outside, patch.object(self.store, 'prune_files', side_effect=OSError('Synthetic failure')):
             with self.assertRaisesRegex(CleanupError, 'rolled_back'):
                 self.store.apply(self.store.preview([IDS[1]], backup={'mode': 'custom', 'directory': outside}))
@@ -127,6 +131,7 @@ class CodexMultiCatalogTests(unittest.TestCase):
             self.assertEqual(len(list(Path(outside).rglob('codex-dev.db'))), 1)
         for path in (self.dev, self.stable):
             self.assertEqual(sql(path, 'SELECT * FROM local_thread_catalog ORDER BY host_id,thread_id'), before[path])
+            self.assertEqual(sql(path, 'SELECT * FROM active_chat_turns'), active_before[path])
             self.assertEqual(sql(path, 'SELECT count(*) FROM automation_runs WHERE thread_id=?', (IDS[1],)), [(1,)])
             self.assertEqual(sql(path, 'SELECT catalog_revision FROM local_thread_catalog_metadata'), [(1,)])
 

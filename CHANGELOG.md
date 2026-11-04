@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Support the observed six-column Codex `active_chat_turns` catalog table. Remove only selected thread IDs in both supported catalogs, preserve unrelated rows, and include these records in stale-preview checks, optional backups and rollback. Cross-host ambiguity and changed schemas still block deletion.
+
 - Recognize Cursor 3.28 `remoteAgentHeaders`, the local cache of SSH remote-agent sessions. An empty or recognized table no longer blocks composer cleanup. Selected UUID rows are deleted without a tombstone, and the cache version sentinel is updated only when a row is removed. Unknown columns, payload versions, or session ids still stop deletion.
 
 - Support coexisting Codex `codex.db` and `codex-dev.db` catalogs: deduplicate inventory, clean selected local references in both catalogs, and include both in preview validation, optional backups and rollback. Preserve unknown-database ambiguity guards and verify the packaged executable with dual-catalog fixtures.

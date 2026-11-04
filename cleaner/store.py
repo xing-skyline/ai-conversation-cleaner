@@ -22,7 +22,8 @@ FILE_ROOTS = {"sessions", "archived_sessions"}
 RULES = {
     "catalog": {"local_thread_catalog": ("thread_id",), "thread_timeline_ledger": ("thread_id",),
                 "local_thread_catalog_scan_entries": ("thread_id",), "inbox_items": ("thread_id",),
-                "automation_runs": ("thread_id",), "live_visualization_suggestions": ("thread_id",)},
+                "automation_runs": ("thread_id",), "live_visualization_suggestions": ("thread_id",),
+                "active_chat_turns": ("thread_id",)},
     "state": {"threads": ("id",), "thread_dynamic_tools": ("thread_id",),
               "thread_attachments": ("thread_id",), "thread_spawn_edges": ("parent_thread_id", "child_thread_id"),
               "thread_read_receipts": ("thread_id",), "guardian_review_feedback": ("thread_id",)},
@@ -38,12 +39,13 @@ PATTERNS = {"catalog": ["sqlite/*.db", "sqlite/*.sqlite"], "state": ["state_*.sq
 REQUIRED = {"catalog": "local_thread_catalog", "state": "threads", "history": "thread_items",
             "goals": "thread_goals", "memories": "stage1_outputs", "queue": "queued_items"}
 KNOWN_CATALOG_NAMES = {"codex.db", "codex-dev.db"}
-CATALOG_UNSCOPED = {"inbox_items", "automation_runs"}
+CATALOG_UNSCOPED = {"inbox_items", "automation_runs", "active_chat_turns"}
 CATALOG_AUXILIARIES = CATALOG_UNSCOPED | {"live_visualization_suggestions"}
 CATALOG_AUX_REQUIRED = {
     "inbox_items": {"id", "thread_id"},
     "automation_runs": {"thread_id", "automation_id"},
     "live_visualization_suggestions": {"account_id", "user_id", "host_id", "thread_id", "id"},
+    "active_chat_turns": {"profile", "account_id", "user_id", "thread_id", "launch_id", "observed_at_ms"},
 }
 
 
@@ -399,6 +401,10 @@ class Store:
                             not CATALOG_AUX_REQUIRED[table] <= cols
                             or cols & {"parent_thread_id", "child_thread_id"}
                         ):
+                            raise CleanupError(f"任务表结构已变化：{role}.{table}")
+                        # The observed six-column schema has no host scope. A new
+                        # scope column must be reviewed before deleting by thread ID.
+                        if table == "active_chat_turns" and cols != CATALOG_AUX_REQUIRED[table]:
                             raise CleanupError(f"任务表结构已变化：{role}.{table}")
 
     def delete_remnants(self, snap, ids):

@@ -59,10 +59,15 @@ def main():
                         for table in STATE_AUXILIARIES}
             remote=sql(catalog,"SELECT * FROM live_visualization_suggestions WHERE host_id<>'local' ORDER BY host_id,thread_id")
             for index,mode in enumerate(['none','custom','none']):
+                selected=inventory['rows'][index]['id']
+                active_kept={path:sql(path,'SELECT * FROM active_chat_turns WHERE thread_id<>?',(selected,))
+                             for path in (catalog,stable_catalog)}
                 plan=api('preview',{'ids':[inventory['rows'][index]['id']],
                                    'backup':{'mode':mode,'directory':str(root/'chosen-backups')}})
                 result=api('delete',{'plan_token':plan['plan_token']})
                 assert result['remaining']==3-index and result['backup_mode']==mode
+                for path,rows in active_kept.items():
+                    assert sql(path,'SELECT * FROM active_chat_turns')==rows
                 if index==0:
                     assert result['rows_removed']['state.thread_read_receipts']==1
                     assert result['rows_removed']['state.guardian_review_feedback']==2
@@ -76,10 +81,12 @@ def main():
             assert sql(catalog,"SELECT count(*) FROM live_visualization_suggestions WHERE host_id='local'")==[(0,)]
             assert sql(catalog,"SELECT * FROM live_visualization_suggestions WHERE host_id<>'local' ORDER BY host_id,thread_id")==remote
             assert sql(catalog,'SELECT count(*) FROM automations')==[(1,)]
+            assert sql(catalog,'SELECT count(*) FROM active_chat_turns')==[(0,)]
             for table in ('local_thread_catalog','thread_timeline_ledger','local_thread_catalog_scan_entries',
-                          'inbox_items','automation_runs','live_visualization_suggestions','automations'):
+                          'inbox_items','automation_runs','live_visualization_suggestions','automations','active_chat_turns'):
                 assert sql(stable_catalog,'SELECT * FROM '+table)==sql(catalog,'SELECT * FROM '+table), table
             print('Packaged coexisting codex.db/codex-dev.db cleanup and deduplication passed.')
+            print('Packaged active_chat_turns cleanup passed in both catalogs; unselected rows preserved.')
             for table in STATE_AUXILIARIES:
                 assert sql(state,'SELECT count(*) FROM '+table)==[(0,)]
             assert sql(state,'PRAGMA foreign_key_check')==[]
