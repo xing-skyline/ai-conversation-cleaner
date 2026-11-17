@@ -20,7 +20,9 @@ def copy_database(source, destination):
 class CodexMultiCatalogTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix='cleaner-multi-catalog-')
-        self.root = Path(self.temp.name)
+        # macOS exposes its temporary root through /var -> /private/var.
+        # Compare the same canonical paths returned by Store on both platforms.
+        self.root = Path(self.temp.name).resolve()
         create_demo(self.root)
         self.dev = self.root / 'sqlite/codex-dev.db'
         self.stable = self.root / 'sqlite/codex.db'
