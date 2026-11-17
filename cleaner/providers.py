@@ -20,13 +20,14 @@ from .protobuf import summary_map, summary_map_bytes
 from .backups import normalize_backup, check_pending, Operation
 from .store import CleanupError, Store, UUID, atomic_json, canonical_path, connect, digest, file_stamp, quote, tables
 
-LABELS = {"codex":"Codex", "claude":"Claude Code", "grok":"Grok Build", "cursor":"Cursor", "antigravity":"Antigravity", "deepseek":"DeepSeek Harness", "opencode":"OpenCode"}
+LABELS = {"codex":"Codex", "claude":"Claude Code", "grok":"Grok Build", "cursor":"Cursor", "antigravity":"Antigravity", "deepseek":"DeepSeek Harness", "opencode":"OpenCode", "pi":"Pi", "omp":"Oh My Pi"}
 # Per-record projection documents. Domain v7 still reads v3–v6 records.
 DSH_PROJECTION_VERSIONS = {3, 4, 5, 6, 7}
 PROCESSES = {"claude":{"claude.exe", "claude-code.exe"}, "grok":{"grok.exe", "grok-build.exe"},
              "cursor":{"cursor.exe", "cursor-agent.exe"},
              "antigravity":{"antigravity.exe", "agy.exe", "language_server_windows_x64.exe"},
-             "opencode":{"opencode.exe", "opencode-cli.exe", "opencode-desktop.exe"}}
+             "opencode":{"opencode.exe", "opencode-cli.exe", "opencode-desktop.exe"},
+             "pi":{"pi.exe"}, "omp":{"omp.exe", "oh-my-pi.exe"}}
 
 
 def read_json(path, fallback=None):
@@ -97,6 +98,8 @@ class LocalProvider:
             "antigravity": [self.profile/".gemini/antigravity", self.profile/".gemini/antigravity-ide", roaming/"Antigravity/User"],
             "deepseek": [self.profile/".dsh"],
             "opencode": [self.profile/".local/share/opencode"],
+            "pi": [self.profile/".pi/agent"],
+            "omp": [self.profile/".omp/agent"],
         }[app]
         self.home = self.roots[0]
         local = self.profile / ("Library/Application Support" if sys.platform == 'darwin' else "AppData/Local")
@@ -527,6 +530,7 @@ class LocalProvider:
 
 def make_providers(codex_home=None,profile=None):
     from .opencode import OpenCodeProvider
+    from .pi import PiProvider
     default_profile = profile is None
     profile=profile or Path.home()
     result={}
@@ -534,6 +538,8 @@ def make_providers(codex_home=None,profile=None):
         try:
             if app == 'opencode':
                 result[app] = OpenCodeProvider(None if default_profile else profile)
+            elif app in {'pi','omp'}:
+                result[app] = PiProvider(app, None if default_profile else profile)
             else:
                 result[app]=Store(codex_home or profile/'.codex') if app=='codex' else LocalProvider(app,profile)
         except CleanupError:

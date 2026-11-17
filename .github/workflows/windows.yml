@@ -34,6 +34,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed.' }
       - name: Test and build
         run: .\build.ps1 -Python .\.venv\Scripts\python.exe
+      - name: Verify inert Node processes are detected
+        run: .\.venv\Scripts\python.exe -m tests.probe_node_guard
       - name: Smoke-test the executable using synthetic data only
         run: .\.venv\Scripts\python.exe tools/smoke_executable.py 'AI会话清理器.exe'
       - name: Package public files and dependency notices

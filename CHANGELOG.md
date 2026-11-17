@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## 1.4.0 — 2026-11-17
+
+- Add Pi and Oh My Pi tabs, JSONL previews and selected deletion, including Pi custom session directories, Oh My Pi exact custom-file/terminal pointers, artifact files and recognized history/FTS/statistics rows. Reuse optional backup/rollback and stale-preview checks; detect both applications' native and Node/Bun writers for shared files.
+- Support OpenCode `session_v2` and coexisting legacy tables, modern message parts/inbox/instruction/blob-reference/job records, and fork dependencies. Preserve automation definitions and shared blobs. Report missing storage and disappearing files with actionable path diagnostics.
 
 - Support the observed six-column Codex `active_chat_turns` catalog table. Remove only selected thread IDs in both supported catalogs, preserve unrelated rows, and include these records in stale-preview checks, optional backups and rollback. Cross-host ambiguity and changed schemas still block deletion.
 

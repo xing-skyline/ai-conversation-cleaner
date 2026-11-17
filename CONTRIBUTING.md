@@ -14,12 +14,14 @@ Normal tests use synthetic temporary data and injected process detectors. Add a 
 
 - `python -m tests.probe_official`: requires Codex CLI. Creates/deletes a synthetic empty session under a temporary home; makes no model request.
 - `python -m tests.probe_node_guard`: requires Node. Starts only an inert test-owned process, verifies detection, then terminates only that process.
-- `python -m tests.browser_demo --url-file .test-artifacts/demo-url.txt`: serves all seven tabs with isolated Codex/OpenCode fixtures. Open the generated local URL to test selection, detail, backup choices and button-only deletion; use Exit tool afterward. The URL contains a temporary token; do not publish it or screenshots with local paths.
+- `python -m tests.browser_demo --url-file .test-artifacts/demo-url.txt`: serves all nine tabs with isolated Codex/OpenCode/Pi/Oh My Pi fixtures. Open the generated local URL to test selection, detail, backup choices and button-only deletion; use Exit tool afterward. The URL contains a temporary token; do not publish it or screenshots with local paths.
 - `python -m tests.verify_local_copies --backup-mode none` (also `custom`): reads real local stores, copies recognized data to temporary directories and deletes only those copies. Reports can contain private usage counts and stay under ignored `.local-reports/`. This is an explicit opt-in check; do not run against someone else's profile without authorization.
 
 For a Cursor-only compatibility check, use `python -m tests.verify_local_copies --app cursor --backup-mode none` (also `custom`). This includes the recognized search database; the adapter checks owned key, index and full-text remnants before reporting success.
 
 For Antigravity, use `python -m tests.verify_local_copies --app antigravity --backup-mode none` (also `custom`). This includes raw hub summaries and consistent copies of per-conversation SQLite databases with committed WAL data; deletion checks the physical body and summary remnants independently of the inventory.
+
+For Pi and Oh My Pi, use `python -m tests.verify_pi_copies --backup-mode none` (also `custom`, with optional `--app pi` or `--app omp`). This maps custom session files and pointers into an isolated temporary profile, verifies selected deletion and unselected-file preservation, then checks that original transcript and pointer hashes are unchanged. Reports stay under ignored `.local-reports/`. Packaged smoke tests also exercise synthetic OpenCode v2, Pi and Oh My Pi stores with both backup modes.
 
 Never commit real dumps, personal-task screenshots, inventory output or local validation reports.
 

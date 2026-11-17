@@ -15,6 +15,8 @@ NODE_PATTERNS={
     'grok':r'(?i)(@xai[\\/]grok|[\\/]grok(?:-build|-cli)?[\\/]|[\\/]grok(?:-build)?(?:\.m?js)?(?:["\s]|$))',
     'deepseek':r'(?i)(@deepseek-ai[\\/]dsh|deepseek-harness|[\\/]dsh[\\/]|[\\/]dsh(?:\.m?js)?(?:["\s]|$)|\.dsh[\\/]profiles)',
     'opencode':r'(?i)([\\/]opencode-ai[\\/]|[\\/]opencode(?:\.m?js)?(?:["\s]|$))',
+    'pi':r'(?i)(@(?:mariozechner|earendil-works)[\\/]pi-coding-agent[\\/]|[\\/]pi(?:-launcher)?\.m?js(?:["\s]|$)|[\\/]pi[\\/]dist[\\/]cli\.js)',
+    'omp':r'(?i)(@oh-my-pi[\\/]pi-coding-agent[\\/]|[\\/]oh-my-pi[\\/]|[\\/]omp(?:\.m?js)?(?:["\s]|$))',
 }
 
 # macOS executables do not have the Windows .exe suffix. Electron helpers can

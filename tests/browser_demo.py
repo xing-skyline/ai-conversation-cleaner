@@ -1,4 +1,4 @@
-"""Optional isolated seven-tab UI fixture. Never opens real application data."""
+"""Optional isolated nine-tab UI fixture. Never opens real application data."""
 import argparse
 import tempfile
 from pathlib import Path
@@ -7,6 +7,7 @@ from cleaner.demo import create_demo
 from cleaner.providers import make_providers
 from cleaner.server import AppServer
 from tests.test_opencode import create_opencode
+from tests.test_pi import create_pi
 
 
 def main():
@@ -17,6 +18,7 @@ def main():
         profile=Path(directory)
         home=profile/'.codex';home.mkdir();create_demo(home)
         create_opencode(profile)
+        for app in ('pi','omp'):create_pi(profile,app)
         providers=make_providers(profile=profile)
         for provider in providers.values():
             provider.process_provider=lambda: []

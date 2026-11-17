@@ -17,6 +17,8 @@ from tests.test_codex_multi_catalog import copy_database
 from tests.test_codex_state import STATE_AUXILIARIES, add_state_auxiliaries
 from tests.test_cleaner import sql
 from tests.test_cursor import CursorTests
+from tests.test_opencode import OpenCodeTests, SELECTED as OPENCODE_SELECTED, KEPT as OPENCODE_KEPT
+from tests.test_pi import create_pi, SELECTED as PI_SELECTED, KEPT as PI_KEPT
 from cleaner.demo import IDS
 from cleaner import cursor
 from cleaner.providers import prune_json
@@ -104,6 +106,70 @@ def main():
             assert process.returncode == 0, 'Executable did not exit cleanly.'
     check_browser_close(args.executable)
     check_cursor(args.executable)
+    check_cli_adapters(args.executable)
+
+
+def check_cli_adapters(executable):
+    """Exercise OpenCode v2 and both new JSONL adapters in the packaged app."""
+    fixture=OpenCodeTests()
+    fixture.setUp()
+    process=None;call=None
+    try:
+        fixture.add_v2()
+        root=fixture.profile.resolve()
+        for app in ('pi','omp'):create_pi(root,app)
+        url_file=root/'url.txt'
+        env=os.environ.copy()
+        for key in ('OPENCODE_DB','XDG_DATA_HOME','PI_CODING_AGENT_DIR','PI_CODING_AGENT_SESSION_DIR','PI_CONFIG_DIR','PI_PROFILE','OMP_PROFILE'):
+            env.pop(key,None)
+        env.update(USERPROFILE=str(root),HOME=str(root),CODEX_HOME=str(root/'.codex'))
+        process=subprocess.Popen([str(executable.resolve()),'--app','opencode','--no-browser','--url-file',str(url_file)],
+                                 env=env,creationflags=subprocess.CREATE_NO_WINDOW if os.name=='nt' else 0)
+        deadline=time.monotonic()+40
+        while not url_file.exists():
+            if process.poll() is not None:raise RuntimeError('Executable exited during CLI adapter startup.')
+            if time.monotonic()>deadline:raise TimeoutError('CLI adapter executable startup timeout.')
+            time.sleep(.1)
+        url=urlsplit(url_file.read_text(encoding='utf-8'));token=parse_qs(url.fragment)['token'][0]
+        origin=f'{url.scheme}://{url.netloc}'
+        def api(path,body=None,app=None):
+            if app:
+                if body is None:path+=('?app='+app)
+                else:body={**body,'app':app}
+            request=urllib.request.Request(origin+'/api/'+path,
+                data=json.dumps(body).encode() if body is not None else None,
+                headers={'X-Cleaner-Token':token,'Content-Type':'application/json','Origin':origin})
+            with urllib.request.urlopen(request,timeout=40) as response:return json.load(response)
+        call=api
+        assert {'opencode','pi','omp'}<={row['id'] for row in api('apps')}
+        for app in ('opencode','pi','omp'):
+            inventory=api('inventory',app=app)
+            assert all(Path(p).is_relative_to(root) for p in inventory['home'].split('；'))
+            ids=(OPENCODE_SELECTED,OPENCODE_KEPT) if app=='opencode' else (PI_SELECTED,PI_KEPT)
+            assert {r['id'] for r in inventory['rows']}==set(ids)
+            for index,mode in enumerate(('none','custom')):
+                plan=api('preview',{'ids':[ids[index]],'backup':{'mode':mode,'directory':str(root/'backups')}},app)
+                result=api('delete',{'plan_token':plan['plan_token']},app)
+                assert result['status']=='complete' and result['remaining']==1-index
+                assert result['backup_mode']==mode
+            assert api('inventory',app=app)['rows']==[]
+            print('Packaged '+app+' inventory and none/custom deletion passed.')
+        assert sql(fixture.db,'SELECT count(*) FROM automation')==[(2,)]
+        assert sql(fixture.db,'SELECT count(*) FROM account')==[(1,)]
+        assert sql(root/'.omp/agent/history.db','SELECT count(*) FROM history WHERE session_id IS NOT NULL')==[(0,)]
+        assert sql(root/'.omp/agent/stats.db','SELECT count(*) FROM messages')==[(0,)]
+    finally:
+        try:
+            if process is not None:
+                if call:
+                    try:call('quit',{})
+                    except (OSError,ValueError):pass
+                try:process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    process.terminate();process.wait(timeout=10)
+                    raise AssertionError('CLI adapter smoke test left the executable running.')
+                assert process.returncode==0
+        finally:fixture.tearDown()
 
 
 def check_cursor(executable):

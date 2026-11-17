@@ -2,7 +2,7 @@
 
 [English](README.md) · 简体中文
 
-在 Windows 或 macOS 本机统一查看、搜索和删除 **Codex、Claude Code、Grok Build、Cursor、Google Antigravity（反重力）、DeepSeek Harness、OpenCode** 的本地会话。支持单选、多选和删除预览。默认不备份；需要时再备份到指定目录。
+在 Windows 或 macOS 本机统一查看、搜索和删除 **Codex、Claude Code、Grok Build、Cursor、Google Antigravity（反重力）、DeepSeek Harness、OpenCode、Pi、Oh My Pi（omp）** 的本地会话。支持单选、多选和删除预览。默认不备份；需要时再备份到指定目录。
 
 **公开预览版 · Windows x64 / macOS Apple Silicon、Intel · 简体中文界面。** 本项目由社区独立开发，与上述应用厂商无隶属关系。
 
@@ -46,12 +46,16 @@ Windows EXE **没有数字签名**；macOS 构建只有本地临时签名（ad-h
 | Antigravity | 旧版 `.pb`、2.x 独立 `.db` 正文及其 WAL/SHM、annotation、brain、recording 文件、本地摘要库、`agyhub_summaries_proto.pb` 和 IDE 索引；不解码二进制正文。已核验 Windows 2.19.1 的存储结构。 |
 | DeepSeek Harness | `.dsh/sessions`（含压缩日志）、摘要缓存、工作区归属和归档引用；显示缓存标题和首条提示摘要，不展开完整压缩正文。 |
 | OpenCode | `opencode.db` 的会话、消息/正文、待办、分享元数据、输入/上下文投影及对应事件记录；已识别的旧版 JSON 和会话差异文件。保留项目、账号、凭据、共享工具输出及云端分享。删除父会话需明确勾选子会话。 |
+| Pi | 默认目录及已配置目录中的 JSONL 会话，支持 v1–v3 会话头、自定义会话 ID、重命名、空会话和消息摘要。保留配置、凭据、Skills 和项目文件。 |
+| Oh My Pi | 本地 JSONL、固定标题槽、同名会话附属目录、精确关联的自定义文件指针/终端指针，以及 `history.db` 提示/标题/摘要/FTS 和 `stats.db` 已识别的会话统计。保留共享 blobs、配置、凭据、Skills、归档、备份和远端存储。 |
 
 这是**从已识别的当前本地存储中实际移除记录和独立文件**，不是简单归档；但**不是安全擦除**。已有备份、通用日志、共享缓存、数据库空闲页、云端历史和系统恢复机制仍可能保留数据。项目源码及文档、凭据、设置、Skills 和插件不在清理范围内。
 
 支持默认用户级 Windows / macOS 数据目录；Codex 额外支持 `CODEX_HOME` / `--home`。OpenCode 默认读取用户主目录下的 `.local/share/opencode`，支持 `XDG_DATA_HOME` 和 `OPENCODE_DB`（不含内存数据库），未指定时读取标准 `opencode.db`。其余应用的自定义目录、WSL、SSH/远端任务、云端 Agent、无关编辑器插件不在适配范围内。未安装 Codex 不影响其他应用标签启动。
 
-OpenCode SQLite 适配已核对 v1.18.31 表结构，同时处理已识别的旧版 `storage/session`、`storage/message`、`storage/part` 和 `storage/session_diff` JSON 文件。发现未知会话关联表时会停止删除，不会静默跳过。OpenCode 数据库备份是整库副本，可能包含账号与凭据信息，请勿公开或上传。
+OpenCode SQLite 适配兼容 v1.18.31 的 `session` 和 2026-11-17 核对的上游 `session_v2` 结构，包括新版消息正文、收件箱、指令状态、blob 引用及 job 记录；迁移后新旧表共存时合并显示并一并清理。保留自动化定义和共享 blob，父会话/派生来源需连同依赖它的会话明确选择。同时处理已识别的旧版 `storage/session`、`storage/message`、`storage/part` 和 `storage/session_diff` JSON 文件。发现未知会话关联表时会停止删除，不会静默跳过。扫描中会话文件消失时显示缺失路径，要求刷新后重新预览；无数据库时会明确提示检查目录。OpenCode 数据库备份是整库副本，可能包含账号与凭据信息，请勿公开或上传。
+
+Pi 默认扫描 `~/.pi/agent/sessions`，支持 `PI_CODING_AGENT_DIR`、`PI_CODING_AGENT_SESSION_DIR` 和用户级 `settings.json` 的 `sessionDir` 绝对路径。Oh My Pi 默认扫描 `~/.omp/agent/sessions`，支持 `PI_CODING_AGENT_DIR`、`PI_CONFIG_DIR`，并读取 `custom-session-files` 和 `terminal-sessions` 中指向的确切 JSONL 文件，不扩展扫描其相邻项目文件。两者共享的自定义会话可能出现在两个标签中，删除同一文件会同时影响两者，因此删除前会检查 Pi 和 Oh My Pi 的进程。仅扫描会话目录顶层及项目子目录；未登记的 `--session`/`--session-dir`、Oh My Pi 命名 profile、压缩归档和远程后端不在当前适配范围内。坏文件、重复 ID 或未知索引结构会阻止操作。
 
 Codex 支持同一数据目录中 `sqlite/codex.db` 与 `sqlite/codex-dev.db` 并存：本地任务按 ID 合并，重复标题采用来源更新时间较新的记录；ChatGPT 目录按主机与任务 ID 去重。确认删除后，会按每个库各自的本地主机标识清理所选任务，并将两个库一并纳入可选备份、回滚和预览变化检查。其他未知的多目录库组合、多个主状态库版本仍会阻止操作。
 

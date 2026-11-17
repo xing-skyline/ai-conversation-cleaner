@@ -22,11 +22,15 @@ class ReleaseReadinessTests(unittest.TestCase):
             'grok':r'node "C:\sample\node_modules\@xai\grok-build\cli.js"',
             'deepseek':r'node "C:\sample\.dsh\profiles\node_modules\@deepseek-ai\dsh\lib\bin.js"',
             'opencode':r'node "C:\sample\node_modules\opencode-ai\bin\opencode"',
+            'pi':r'node "C:\sample\node_modules\@earendil-works\pi-coding-agent\dist\cli.js"',
+            'omp':r'bun "C:\sample\node_modules\@oh-my-pi\pi-coding-agent\dist\cli.js"',
         }
         import re
         for app,command in cases.items():
             self.assertRegex(command,processes.NODE_PATTERNS[app])
             self.assertIsNone(re.search(processes.NODE_PATTERNS[app],r'node C:\sample\ordinary-server.js'))
+        self.assertRegex(r'node "C:\sample\.pi\agent\bin\pi-launcher.js"',processes.NODE_PATTERNS['pi'])
+        self.assertRegex('node /opt/node_modules/@mariozechner/pi-coding-agent/dist/cli.js',processes.NODE_PATTERNS['pi'])
 
 
 if __name__=='__main__':unittest.main()

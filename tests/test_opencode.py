@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from cleaner.providers import make_providers
-from cleaner.opencode import OpenCodeProvider
+from cleaner.opencode import OpenCodeProvider, AUTOMATION_COLUMNS
 from cleaner.store import CleanupError
 from tests.test_cleaner import put, sql
 
@@ -179,6 +179,88 @@ class OpenCodeTests(unittest.TestCase):
             with self.assertRaisesRegex(CleanupError, 'failed_no_backup'):
                 store.apply(store.preview([SELECTED], backup={'mode':'none'}))
         self.assertEqual({r['id'] for r in store.snapshot()['rows']}, {KEPT})
+
+    def add_v2(self, legacy=True):
+        with contextlib.closing(sqlite3.connect(self.db)) as con:
+            if not legacy:
+                for table in ('part','message',*RELATED,'session'):
+                    con.execute(f'DROP TABLE {table}')
+            else:
+                con.execute('DROP TABLE session_message')
+            con.executescript('''
+                CREATE TABLE session_v2(id TEXT PRIMARY KEY,title TEXT,directory TEXT,time_updated INTEGER,
+                    parent_id TEXT,fork_session_id TEXT,time_archived INTEGER);
+                CREATE TABLE session_message(id TEXT PRIMARY KEY,session_id TEXT REFERENCES session_v2(id) ON DELETE CASCADE,
+                    type TEXT,seq INTEGER,data TEXT);
+                CREATE TABLE session_part(message_id TEXT REFERENCES session_message(id) ON DELETE CASCADE,
+                    session_id TEXT REFERENCES session_v2(id) ON DELETE CASCADE,ordinal INTEGER,data TEXT);
+                CREATE TABLE session_inbox(session_id TEXT REFERENCES session_v2(id) ON DELETE CASCADE,payload TEXT);
+                CREATE TABLE instruction_entry(session_id TEXT REFERENCES session_v2(id) ON DELETE CASCADE,value TEXT);
+                CREATE TABLE instruction_state(session_id TEXT REFERENCES session_v2(id) ON DELETE CASCADE,current_values TEXT);
+                CREATE TABLE instruction_blob(hash TEXT,value TEXT);
+                CREATE TABLE blob(hash TEXT PRIMARY KEY,data BLOB);
+                CREATE TABLE blob_ref(session_id TEXT REFERENCES session_v2(id) ON DELETE CASCADE,message_id TEXT,hash TEXT REFERENCES blob(hash));
+                CREATE TABLE job(session_id TEXT,child_session_id TEXT,output TEXT);
+                INSERT INTO blob VALUES('shared',X'0102');
+                INSERT INTO instruction_blob VALUES('shared','shared instruction');
+            ''')
+            con.execute('CREATE TABLE automation('+','.join('"'+c+'" TEXT' for c in sorted(AUTOMATION_COLUMNS))+')')
+            for target in (SELECTED,KEPT):
+                con.execute('INSERT INTO session_v2 VALUES(?,?,?,?,?,?,?)',(target,'Modern '+target,'C:/Modern',1900000000000,None,None,None))
+                con.execute('INSERT INTO session_message VALUES(?,?,?,?,?)',('user_'+target,target,'user',1,json.dumps({'parts':[{'text':'Modern prompt'}]})))
+                con.execute('INSERT INTO session_message VALUES(?,?,?,?,?)',('assistant_'+target,target,'assistant',2,'{}'))
+                con.execute('INSERT INTO session_part VALUES(?,?,?,?)',('assistant_'+target,target,0,json.dumps({'type':'text','text':'Modern reply'})))
+                for table in ('session_inbox','instruction_entry','instruction_state'):
+                    con.execute(f'INSERT INTO {table} VALUES(?,?)',(target,'{}'))
+                con.execute('INSERT INTO blob_ref VALUES(?,?,?)',(target,'user_'+target,'shared'))
+                con.execute('INSERT INTO job VALUES(?,?,?)',(target,None,'output'))
+                con.execute('INSERT INTO automation(id,session_id,name) VALUES(?,?,?)',('auto_'+target,target,'Keep automation'))
+            con.commit()
+
+    def test_v2_only_and_migrated_databases(self):
+        self.add_v2()
+        store=self.provider()
+        self.assertEqual(store.detail(SELECTED)['row']['title'],'Modern '+SELECTED)
+        self.assertEqual([m['text'] for m in store.detail(SELECTED)['messages']],['Modern prompt','Modern reply'])
+        result=store.apply(store.preview([SELECTED]))
+        self.assertEqual(result['remaining'],1)
+        for table in ('session_part','session_inbox','instruction_entry','instruction_state','blob_ref','job'):
+            self.assertEqual(sql(self.db,f'SELECT DISTINCT session_id FROM {table}'),[(KEPT,)])
+        self.assertEqual(sql(self.db,'SELECT id FROM session'),[(KEPT,)])
+        self.assertEqual(sql(self.db,'SELECT id FROM session_v2'),[(KEPT,)])
+        self.assertEqual(sql(self.db,'SELECT count(*) FROM automation'),[(2,)])
+        self.assertEqual(sql(self.db,'SELECT hash FROM blob'),[('shared',)])
+        self.assertEqual(sql(self.db,'SELECT hash FROM instruction_blob'),[('shared',)])
+        for table in ('part','message','todo','session_share','session_input','session_context_epoch','session'):
+            sql(self.db,f'DROP TABLE {table}')
+        self.assertEqual(store.apply(store.preview([KEPT]))['remaining'],0)
+
+    def test_v2_fork_dependency_and_ownership_validation(self):
+        self.add_v2(legacy=False)
+        store=self.provider()
+        sql(self.db,'UPDATE session_v2 SET fork_session_id=? WHERE id=?',(SELECTED,KEPT))
+        with self.assertRaisesRegex(CleanupError,'子会话'):store.preview([SELECTED])
+        sql(self.db,'UPDATE session_part SET session_id=? WHERE message_id=?',(KEPT,'assistant_'+SELECTED))
+        with self.assertRaisesRegex(CleanupError,'归属'):store.preview([SELECTED,KEPT])
+
+    def test_v2_changed_automation_schema_is_not_silently_ignored(self):
+        self.add_v2(legacy=False)
+        sql(self.db,'ALTER TABLE automation ADD COLUMN future_payload TEXT')
+        with self.assertRaisesRegex(CleanupError,'未适配'):self.provider().preview([SELECTED])
+
+    def test_missing_storage_explains_empty_inventory(self):
+        store=OpenCodeProvider(self.profile/'missing',process_provider=lambda:[])
+        result=store.inventory()
+        self.assertEqual(result['rows'],[])
+        self.assertIn('OPENCODE_DB',' '.join(result['warnings']))
+
+    def test_file_disappearing_during_preview_has_actionable_error_and_no_writes(self):
+        store=self.provider()
+        missing=self.root/'storage/session_diff'/(SELECTED+'.json')
+        with patch('cleaner.opencode.file_stamp',side_effect=FileNotFoundError(2,'missing',str(missing))):
+            with self.assertRaisesRegex(CleanupError,'重新预览.*缺失路径'):
+                store.preview([SELECTED])
+        self.assertEqual(sql(self.db,'SELECT count(*) FROM session'),[(2,)])
 
 
 if __name__ == '__main__':

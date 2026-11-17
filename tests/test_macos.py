@@ -10,6 +10,7 @@ from unittest.mock import patch
 from cleaner import folders, processes, rpc
 from cleaner.demo import create_demo
 from cleaner.providers import LocalProvider
+from cleaner.pi import PiProvider
 from cleaner.store import CleanupError, Store
 
 
@@ -27,8 +28,12 @@ class PlatformPathsTests(unittest.TestCase):
                     self.assertEqual(cursor.home, profile/appdata/'Cursor/User')
                     self.assertIn(profile/appdata/'Antigravity/User', anti.roots)
                     self.assertEqual(cursor.backup_root, profile/backup/'AIConversationCleaner/backups/cursor')
-                    for app, folder in [('claude', '.claude'), ('grok', '.grok'), ('deepseek', '.dsh'), ('opencode', '.local/share/opencode')]:
+                    for app, folder in [('claude', '.claude'), ('grok', '.grok'), ('deepseek', '.dsh'), ('opencode', '.local/share/opencode'), ('pi', '.pi/agent'), ('omp', '.omp/agent')]:
                         self.assertEqual(LocalProvider(app, profile).home, profile/folder)
+                    for app,folder in [('pi','.pi/agent'),('omp','.omp/agent')]:
+                        provider=PiProvider(app,profile,process_provider=lambda:[])
+                        self.assertEqual(provider.sessions,[profile/folder/'sessions'])
+                        self.assertEqual(provider.backup_root,profile/backup/'AIConversationCleaner/backups'/app)
 
     def test_finder_launch_finds_bundled_codex_without_shell_path(self):
         target = Path('/Applications/ChatGPT.app/Contents/Resources/codex')
@@ -69,6 +74,15 @@ class MacProcessesTests(unittest.TestCase):
                 with self.subTest(result=result), patch('cleaner.processes.subprocess.run', return_value=result):
                     with self.assertRaisesRegex(RuntimeError, '进程'):
                         store.assert_offline()
+
+    def test_pi_and_omp_native_and_runtime_writers(self):
+        executables='31 /opt/homebrew/bin/pi\n32 /usr/local/bin/omp\n33 /opt/homebrew/bin/node\n34 /usr/local/bin/bun\n35 /usr/bin/python3\n'
+        arguments='31 pi\n32 omp\n33 node /Users/example/My Tools/node_modules/@earendil-works/pi-coding-agent/dist/cli.js\n34 bun /tmp/node_modules/@oh-my-pi/pi-coding-agent/dist/cli.js\n35 python3 check.py /tmp/node_modules/@oh-my-pi/pi-coding-agent/dist/cli.js\n'
+        def run(command,**kwargs):
+            return subprocess.CompletedProcess(command,0,arguments if 'pid=,args=' in command else executables,'')
+        with patch('cleaner.processes.subprocess.run',side_effect=run):
+            self.assertEqual({p['pid'] for p in processes.cli_processes('pi',{'pi.exe'})},{31,33})
+            self.assertEqual({p['pid'] for p in processes.cli_processes('omp',{'omp.exe'})},{32,34})
 
 
 class MacFolderTests(unittest.TestCase):
