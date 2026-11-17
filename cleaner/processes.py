@@ -98,6 +98,11 @@ def app_processes(names: set[str]) -> list[dict]:
     """Read native processes without invoking a shell or terminating anything."""
     if sys.platform == 'darwin':
         return mac_processes(names)
+    return [{'pid': row['pid'], 'name': row['name']} for row in windows_process_table()
+            if row['name'].lower() in names]
+
+
+def windows_process_table():
     if os.name != "nt":
         raise RuntimeError("当前版本的进程保护仅支持 Windows 和 macOS。")
     kernel = ctypes.WinDLL("kernel32", use_last_error=True)
@@ -125,8 +130,8 @@ def app_processes(names: set[str]) -> list[dict]:
         while ok:
             name = entry.szExeFile
             # ChatGPT.exe is also the Codex desktop package process name.
-            if name.lower() in names:
-                found.append({"pid": entry.th32ProcessID, "name": name})
+            found.append({"pid": entry.th32ProcessID, "name": name,
+                          "ppid": entry.th32ParentProcessID})
             ok = kernel.Process32NextW(handle, ctypes.byref(entry))
     finally:
         kernel.CloseHandle(handle)

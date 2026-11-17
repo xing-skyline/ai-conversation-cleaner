@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.5.0 — 2026-11-17
+
+- Add an unchecked-by-default “Close the application before deleting” option, with a reviewed list of process names/PIDs and a warning about interrupted tasks and unsaved work.
+- On Windows and macOS, request shutdown before forcibly ending reviewed processes that remain running. Bind process creation times to the server-side preview, protect the cleaner and its ancestors, and reject new or replaced processes.
+- Keep offline checks and stale-data validation after shutdown. Failed closure or data changes stop deletion; unselected generic runtimes, terminal groups and unknown child processes are not terminated.
+- Verify the real close path using inert test-owned Node processes and isolated packaged Pi fixtures, alongside the existing backup/deletion regressions.
+
 ## 1.4.0 — 2026-11-17
 
 - Add Pi and Oh My Pi tabs, JSONL previews and selected deletion, including Pi custom session directories, Oh My Pi exact custom-file/terminal pointers, artifact files and recognized history/FTS/statistics rows. Reuse optional backup/rollback and stale-preview checks; detect both applications' native and Node/Bun writers for shared files.

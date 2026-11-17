@@ -178,6 +178,18 @@ class PiTests(unittest.TestCase):
         with self.assertRaisesRegex(CleanupError,'变化'):store.apply(plan)
         self.assertTrue(paths[SELECTED].exists())
 
+    def test_optional_close_hook_runs_before_local_provider_offline_guard(self):
+        root,paths=create_pi(self.profile,'pi')
+        running=[{'pid':123,'name':'omp.exe'}]
+        store=PiProvider('pi',self.profile,lambda:running)
+        plan=store.preview([SELECTED])
+        def close():
+            self.assertTrue(paths[SELECTED].exists())
+            running.clear()
+        result=store.apply(plan,before_delete=close)
+        self.assertEqual(result['deleted'],1)
+        self.assertTrue(paths[KEPT].exists())
+
     def test_unknown_index_and_malformed_journal_block_before_writes(self):
         root,paths=create_pi(self.profile,'omp')
         store=PiProvider('omp',self.profile,lambda:[])

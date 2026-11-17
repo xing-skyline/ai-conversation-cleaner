@@ -18,7 +18,8 @@ from urllib.parse import parse_qs, urlsplit
 from .demo import create_demo
 from .store import CleanupError, Store
 from .providers import LABELS, make_providers
-from .backups import backup_destination
+from .backups import backup_destination, check_pending
+from .process_control import capture_processes, close_selected_processes
 from .folders import choose_backup_directory, open_directory
 from .lifecycle import BrowserLifetime
 
@@ -142,17 +143,32 @@ class Handler(BaseHTTPRequestHandler):
                 raise CleanupError("应用不存在或数据目录不可用。")
             if self.path == "/api/preview":
                 plan = store.preview(data.get("ids"),backup=data.get('backup'))
+                processes, tickets, close_error = capture_processes(store.process_provider)
                 token = secrets.token_urlsafe(24)
                 with self.server.plan_lock:
-                    self.server.plans = {token: (time.monotonic(), plan, app)}
-                return self.respond(200, plan | {"plan_token": token})
+                    self.server.plans = {token: (time.monotonic(), plan, app, tickets, close_error)}
+                return self.respond(200, plan | {"plan_token": token, "processes": processes,
+                                                "close_error": close_error})
             if self.path == "/api/delete":
+                close_running = data.get('close_running', False)
+                if type(close_running) is not bool:
+                    raise CleanupError('关闭应用选项必须是布尔值。')
                 with self.server.plan_lock:
                     entry = self.server.plans.pop(data.get("plan_token", ""), None)
                 if entry is None or time.monotonic() - entry[0] > 900:
                     raise CleanupError("删除预览已失效，请重新预览。")
                 if entry[2] != app:
                     raise CleanupError("预览后切换了应用，请重新预览。")
+                if close_running:
+                    if entry[4]:
+                        raise CleanupError(entry[4])
+                    def before_delete():
+                        check_pending(store)
+                        fresh = store.preview(entry[1]['ids'], backup=entry[1]['backup'])
+                        if fresh['fingerprint'] != entry[1]['fingerprint']:
+                            raise CleanupError('预览后会话发生变化，请刷新并重新预览。')
+                        close_selected_processes(store.process_provider, entry[3])
+                    return self.respond(200, store.apply(entry[1], before_delete=before_delete))
                 return self.respond(200, store.apply(entry[1]))
             if self.path == "/api/open-backups":
                 destination=backup_destination(store,data.get('backup'))

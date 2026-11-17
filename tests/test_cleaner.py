@@ -253,6 +253,53 @@ class HttpTests(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError):self.request('/api/delete',{'plan_token':plan['plan_token']})
     def test_ids_require_real_membership(self):
         with self.assertRaises(urllib.error.HTTPError):self.request('/api/preview',{'ids':['../../file']})
+    def test_process_close_requires_explicit_boolean(self):
+        plan=self.request('/api/preview',{'ids':[IDS[0]]})
+        with patch('cleaner.server.close_selected_processes') as close:
+            with self.assertRaises(urllib.error.HTTPError):
+                self.request('/api/delete',{'plan_token':plan['plan_token'],'close_running':'true'})
+            close.assert_not_called()
+            self.assertEqual(len(self.server.store.inventory()['rows']),4)
+    def test_default_does_not_close_running_app(self):
+        rows=[{'pid':12345,'name':'test-only'}]
+        with patch.object(self.server.store,'process_provider',return_value=rows), \
+             patch('cleaner.server.capture_processes',return_value=(rows,[],None)), \
+             patch('cleaner.server.close_selected_processes') as close:
+            plan=self.request('/api/preview',{'ids':[IDS[0]]})
+            with self.assertRaises(urllib.error.HTTPError):
+                self.request('/api/delete',{'plan_token':plan['plan_token']})
+            close.assert_not_called()
+            self.assertEqual(len(self.server.store.inventory()['rows']),4)
+    def test_close_uses_server_tickets_before_deletion(self):
+        rows=[{'pid':12345,'name':'test-only'}];tickets=[dict(rows[0],identity=(100,20))]
+        def close(provider, reviewed):
+            self.assertEqual(len(self.server.store.snapshot()['rows']),4)
+            self.assertEqual(reviewed,tickets)
+            rows.clear()
+        with patch.object(self.server.store,'process_provider',side_effect=lambda:list(rows)), \
+             patch('cleaner.server.capture_processes',return_value=(list(rows),tickets,None)), \
+             patch('cleaner.server.close_selected_processes',side_effect=close):
+            plan=self.request('/api/preview',{'ids':[IDS[0]]})
+            self.assertEqual(plan['processes'],rows)
+            self.assertNotIn('identity',json.dumps(plan))
+            report=self.request('/api/delete',{'plan_token':plan['plan_token'],'close_running':True,
+                                               'processes':[{'pid':99999}],'tickets':[]})
+            self.assertEqual(report['deleted'],1)
+    def test_close_failure_preserves_data(self):
+        plan=self.request('/api/preview',{'ids':[IDS[0]]})
+        with patch('cleaner.server.close_selected_processes',side_effect=RuntimeError('fixture close failed')):
+            with self.assertRaises(urllib.error.HTTPError):
+                self.request('/api/delete',{'plan_token':plan['plan_token'],'close_running':True})
+        self.assertEqual(len(self.server.store.inventory()['rows']),4)
+    def test_data_changed_during_close_requires_new_preview(self):
+        plan=self.request('/api/preview',{'ids':[IDS[0]]})
+        def close(*_):
+            path=self.server.store.home/'session_index.jsonl'
+            path.write_text(path.read_text(encoding='utf-8')+'\n',encoding='utf-8')
+        with patch('cleaner.server.close_selected_processes',side_effect=close):
+            with self.assertRaises(urllib.error.HTTPError):
+                self.request('/api/delete',{'plan_token':plan['plan_token'],'close_running':True})
+        self.assertEqual(len(self.server.store.inventory()['rows']),4)
     def test_backup_policy_is_bound_to_preview(self):
         plan=self.request('/api/preview',{'ids':[IDS[0]],'backup':{'mode':'none'}})
         self.assertEqual(plan['backup']['mode'],'none')

@@ -490,8 +490,10 @@ class Store:
                     data[key] = prune(data[key])
             atomic_json(global_path, data)
 
-    def apply(self, plan):
+    def apply(self, plan, before_delete=None):
         with self.lock, self.exclusive():
+            if before_delete is not None:
+                before_delete()
             self.assert_offline()
             if plan.get("home") != str(self.home):
                 raise CleanupError("删除计划不属于当前数据目录。")

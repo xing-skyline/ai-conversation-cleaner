@@ -5,6 +5,7 @@ import shutil
 import os
 import subprocess
 from cleaner.processes import cli_processes
+from cleaner.process_control import capture_processes, close_selected_processes
 
 
 def main():
@@ -21,6 +22,15 @@ def main():
         try:
             assert child.pid in {p['pid'] for p in cli_processes(app,set())}, app+' Node guard missed its test fixture'
             print(app+' Node process guard: passed')
+            if app == 'deepseek':
+                # Only this inert child is eligible, even on a developer's
+                # machine with real CLI processes running. Never close them.
+                provider=lambda:[p for p in cli_processes(app,set()) if p['pid']==child.pid]
+                rows,tickets,error=capture_processes(provider)
+                assert not error and len(tickets)==1, error or 'missing fixture identity'
+                close_selected_processes(provider,tickets)
+                child.wait(timeout=10)
+                print('Opt-in close of exact test-owned process: passed')
         finally:
             child.terminate();child.wait(timeout=10)
 

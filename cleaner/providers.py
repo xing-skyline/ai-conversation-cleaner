@@ -420,8 +420,10 @@ class LocalProvider:
                 con.rollback();raise
         return cursor_fts_rows
 
-    def apply(self,plan):
+    def apply(self,plan,before_delete=None):
         with self.lock,self.exclusive():
+            if before_delete is not None:
+                before_delete()
             self.assert_offline()
             check_pending(self)
             if plan.get('app')!=self.app or plan.get('home')!=str(self.home):raise CleanupError('删除计划对应的应用已变化。')

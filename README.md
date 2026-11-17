@@ -29,11 +29,15 @@ The Windows executable is **unsigned**. macOS bundles use ad-hoc signing, withou
    | 不备份，直接删除 | Default. No conversation or database copy. Committed changes cannot be automatically restored after an error. |
    | 备份到指定目录 | Open the native folder picker or enter an absolute path. Backups go under `selected-folder/AIConversationCleaner/app/timestamp`. |
 
-4. Exit the target application, its CLI and background processes.
-5. Click **删除所选任务**, review titles/IDs and the backup policy, then click **备份并删除** or **直接删除（不备份）**. No typed confirmation is required.
+4. Click **删除所选任务** and review titles, IDs, backup policy and detected processes. Exit the application manually, or check **关闭对应应用后继续删除** (“Close the application before deleting”), which defaults to unchecked for every preview.
+5. Confirm deletion. If selected, the cleaner closes the listed processes and waits for exit before backup/deletion. No typed confirmation is required.
 6. Check the result, then reopen the original application.
 
 Each fresh launch defaults to no backup and does not remember the previous choice. A preview binds the IDs and backup policy to a short-lived, single-use token. Changed data requires a fresh preview. Each batch supports up to 500 conversations.
+
+Automatic close interrupts active tasks and may lose unsaved work. Windows requests window closure; macOS sends SIGTERM. Reviewed processes that remain running are forcibly ended. Only the listed application processes are eligible; the cleaner never terminates all generic Node/Bun processes or entire terminal groups. Pi and Oh My Pi can share transcripts, so both applications' writers are listed. The cleaner and its ancestors are protected: launch the cleaner independently or close the application manually in that case.
+
+Failure to close, new/replaced processes, or data changes during shutdown stop deletion and require a fresh preview. Applications are not restarted automatically.
 
 ## Supported storage
 
@@ -65,7 +69,7 @@ The observed six-column `active_chat_turns` schema (`profile`, `account_id`, `us
 
 Cursor storage was checked against 3.23.23, and the `remoteAgentHeaders` table added in 3.28.7 was checked separately. Both `state.vscdb` and `conversation-search.db` participate in backup, rollback and stale-preview checks. Only selected local search rows, full-text entries and reconciliation candidates are removed; cloud-cache rows with the same ID are preserved. Modern composer headers retain native deletion markers with titles cleared, which are excluded from the cleaner's conversation list. `remoteAgentHeaders` is the local cache of SSH remote-agent sessions: an empty or recognized table does not block cleanup, and selected UUID rows are deleted by primary key with no tombstone. The session on the remote host can be written back the next time that host connects. Separate post-deletion checks detect recognized key/index remnants. Unknown search schemas, columns, cache versions, or session ids block preview.
 
-These internal upstream formats can change; **compatibility with every version is not guaranteed**. DeepSeek per-session projection cache versions 3–7, shared projection version 3 and workspace version 2 are recognized. Deletion removes the whole session directory, including v3/v4 compressed logs, nested files and pinned entries. Several unexpected structures stop processing, but not every upstream change can be detected. Known executable and Node/Bun paths are checked; custom launchers/plugins may escape detection, so closing the target application yourself remains mandatory. DSH Desktop can keep running after its window closes; quit it from the tray or end every matching process before deleting.
+These internal upstream formats can change; **compatibility with every version is not guaranteed**. DeepSeek per-session projection cache versions 3–7, shared projection version 3 and workspace version 2 are recognized. Deletion removes the whole session directory, including v3/v4 compressed logs, nested files and pinned entries. Several unexpected structures stop processing, but not every upstream change can be detected. Known executable and Node/Bun paths are checked and can be closed using the opt-in confirmation option; unrecognized custom launchers/plugins still require manual exit. DSH Desktop can keep running after its window closes; detected background processes appear in the confirmation dialog.
 
 ## Backups, recovery and privacy
 

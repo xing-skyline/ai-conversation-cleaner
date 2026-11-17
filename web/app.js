@@ -65,7 +65,7 @@ async function refresh(preserveError=false) {
     $('total').textContent=data.rows.length;$('archived').textContent=data.rows.filter(r=>r.archived).length;
     $('broken').textContent=data.rows.filter(r=>r.status!=='正常' && r.status!=='已归档').length;
     $('home').textContent='数据目录：'+data.home;$('demo').hidden=!data.demo;
-    $('process-note').textContent=data.processes.length ? `${data.label} 正在运行 · 现在可以查看和选择会话，执行删除前请退出对应应用。` : '对应应用已退出 · 可以执行删除，完成后会核对结果。';
+    $('process-note').textContent=data.processes.length ? `${data.label} 正在运行 · 可以先选择会话，在删除确认框勾选关闭应用，或手动退出后删除。` : '对应应用已退出 · 可以执行删除，完成后会核对结果。';
     if(data.warnings.length)$('process-note').textContent+=' '+data.warnings.join('；');
     render();updateBackupUI();
   } catch(e) { showError(e);$('process-note').textContent='读取未完成，请检查数据目录后刷新。'; }
@@ -98,16 +98,24 @@ $('preview').addEventListener('click',async()=>{
     plan=await api('preview',{ids:[...selected],backup:backupChoice()});$('plan-summary').textContent=`将删除 ${plan.rows.length} 个任务、${plan.file_count} 个会话文件（${size(plan.bytes)}）。`;
     const noBackup=plan.backup.mode==='none';
     $('confirm-note').classList.toggle('error',noBackup);
-    $('confirm-note').textContent=`请先退出 ${data.label}${app==='codex'?' 桌面端与 Codex CLI':''}。\n`+(noBackup?'不备份，直接删除。误删或中途失败后无法自动恢复；已有备份保留。':`先备份再删除。备份位置：${joinPath(backupLocation(plan.backup),'时间戳')}`);
-    $('execute').textContent=noBackup?'直接删除（不备份）':'备份并删除';
+    $('confirm-note').textContent=noBackup?'不备份，直接删除。误删或中途失败后无法自动恢复；已有备份保留。':`先备份再删除。备份位置：${joinPath(backupLocation(plan.backup),'时间戳')}`;
+    $('close-running').checked=false;
+    $('close-running').disabled=!!plan.close_error || !plan.processes.length;
+    $('close-processes').textContent=(plan.processes.length?'检测到：'+plan.processes.map(p=>`${p.name} (PID ${p.pid})`).join('、')+'。未勾选时需手动退出。':'未检测到对应应用进程，无需自动关闭。')+(plan.close_error?' '+plan.close_error:'');
+    updateExecuteLabel();
     $('plan-list').replaceChildren();for(const r of plan.rows){const li=node('li',r.title);li.append(node('small',r.id));$('plan-list').append(li);}
     $('execute').disabled=false;$('confirm-dialog').showModal();
   }catch(e){showError(e);}
 });
+function updateExecuteLabel(){
+  if(!plan)return;
+  $('execute').textContent=($('close-running').checked?'关闭应用并':'')+(plan.backup.mode==='none'?'直接删除（不备份）':'备份并删除');
+}
+$('close-running').addEventListener('change',updateExecuteLabel);
 $('execute').addEventListener('click',async()=>{
-  if(busy)return;busy=true;$('execute').disabled=true;$('execute').textContent=plan.backup.mode==='none'?'正在直接删除…':'正在备份并删除…';$('error').hidden=true;
+  if(busy)return;busy=true;$('execute').disabled=true;$('close-running').disabled=true;$('execute').textContent=$('close-running').checked?'正在关闭应用并删除…':plan.backup.mode==='none'?'正在直接删除…':'正在备份并删除…';$('error').hidden=true;
   try{
-    const r=await api('delete',{plan_token:plan.plan_token});
+    const r=await api('delete',{plan_token:plan.plan_token,close_running:$('close-running').checked});
     $('success').textContent=`${data.label} 已删除 ${r.deleted} 个会话，保留 ${r.remaining} 个。验证通过。${app==='codex'?`ChatGPT 目录 ${r.chatgpt_before} → ${r.chatgpt_after}。`:''}${r.backup_dir?'备份：'+r.backup_dir:'本次未创建备份。'}`;$('success').hidden=false;selected.clear();$('confirm-dialog').close();
   }catch(e){$('confirm-dialog').close();showError(e);}
   finally{busy=false;$('execute').textContent='备份并删除';await refresh(true);}

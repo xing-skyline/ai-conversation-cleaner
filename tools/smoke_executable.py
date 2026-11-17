@@ -3,6 +3,7 @@ import argparse
 import contextlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -113,7 +114,7 @@ def check_cli_adapters(executable):
     """Exercise OpenCode v2 and both new JSONL adapters in the packaged app."""
     fixture=OpenCodeTests()
     fixture.setUp()
-    process=None;call=None
+    process=None;call=None;close_fixture=None
     try:
         fixture.add_v2()
         root=fixture.profile.resolve()
@@ -148,8 +149,29 @@ def check_cli_adapters(executable):
             ids=(OPENCODE_SELECTED,OPENCODE_KEPT) if app=='opencode' else (PI_SELECTED,PI_KEPT)
             assert {r['id'] for r in inventory['rows']}==set(ids)
             for index,mode in enumerate(('none','custom')):
+                auto_close=app=='pi' and index==0
+                if auto_close:
+                    node=shutil.which('node')
+                    assert node, 'Node is required for the inert packaged close probe.'
+                    marker=str(root/'node_modules/@earendil-works/pi-coding-agent/dist/cli.js')
+                    close_fixture=subprocess.Popen([node,'-e','setInterval(()=>{},1000)',marker],
+                        creationflags=subprocess.CREATE_NO_WINDOW if os.name=='nt' else 0)
                 plan=api('preview',{'ids':[ids[index]],'backup':{'mode':mode,'directory':str(root/'backups')}},app)
-                result=api('delete',{'plan_token':plan['plan_token']},app)
+                if auto_close:
+                    # Abort before calling delete if any actual user app appears.
+                    assert {p['pid'] for p in plan['processes']}=={close_fixture.pid}, 'Unexpected process: refusing automatic close.'
+                    assert not plan['close_error'], plan['close_error']
+                    try:api('delete',{'plan_token':plan['plan_token']},app)
+                    except urllib.error.HTTPError as error:
+                        assert '退出' in json.load(error)['error']
+                    else:raise AssertionError('Unchecked delete did not block a running writer.')
+                    plan=api('preview',{'ids':[ids[index]],'backup':{'mode':mode}},app)
+                    assert {p['pid'] for p in plan['processes']}=={close_fixture.pid}
+                    assert not plan['close_error'], plan['close_error']
+                result=api('delete',{'plan_token':plan['plan_token'],'close_running':auto_close},app)
+                if auto_close:
+                    close_fixture.wait(timeout=10)
+                    print('Packaged opt-in close passed: only the inert test-owned CLI process was ended.')
                 assert result['status']=='complete' and result['remaining']==1-index
                 assert result['backup_mode']==mode
             assert api('inventory',app=app)['rows']==[]
@@ -169,7 +191,10 @@ def check_cli_adapters(executable):
                     process.terminate();process.wait(timeout=10)
                     raise AssertionError('CLI adapter smoke test left the executable running.')
                 assert process.returncode==0
-        finally:fixture.tearDown()
+        finally:
+            if close_fixture is not None and close_fixture.poll() is None:
+                close_fixture.terminate();close_fixture.wait(timeout=10)
+            fixture.tearDown()
 
 
 def check_cursor(executable):
